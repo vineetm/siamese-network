@@ -3,6 +3,7 @@ import tensorflow.contrib as contrib
 from collections import namedtuple
 import argparse, os, codecs
 
+from pip.cmdoptions import resolve_wheel_no_use_binary
 from tensorflow.python.ops import lookup_ops
 from tensorflow.contrib import data
 
@@ -64,7 +65,7 @@ def save_hparams(hparams):
   with codecs.getwriter('utf-8')(tf.gfile.GFile(hparams_file, 'wb')) as f:
     f.write(hparams.to_json())
 
-class BatchedInput(namedtuple('BatchedInput', 'text1 text2 label init')):
+class BatchedInput(namedtuple('BatchedInput', 'text1 text2 labels init')):
   pass
 
 def create_train_iterator(text1_path, text2_path, labels_path, batch_size, vocab_table):
@@ -101,18 +102,35 @@ class SiameseModel:
     self.d = hparams.d
     self.vocab = hparams.vocab
 
-    self.vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
+    self.graph = tf.Graph()
 
-    #Setup iterator
-    if mode == contrib.learn.ModeKeys.TRAIN:
-      self.iterator = create_train_iterator(hparams.text1_path, hparams.text2_path, hparams.labels_path,
+    with self.graph.as_default():
+      self.vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
+
+      #Setup iterator
+      if mode == contrib.learn.ModeKeys.TRAIN:
+        self.iterator = create_train_iterator(hparams.text1_path, hparams.text2_path, hparams.labels_path,
                                               hparams.train_batch_size, self.vocab_table)
 
-    self.batch_size = tf.shape(self.iterator.text1)[0]
-    self.W = tf.get_variable('embeddings', [self.vocab, self.d])
+      self.batch_size = tf.shape(self.iterator.text1)[0]
+      self.W = tf.get_variable('embeddings', [self.vocab, self.d])
 
+      text1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text1)
+      text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
 
+      rnn_cell = contrib.rnn.BasicLSTMCell(self.d)
+      with tf.variable_scope('rnn'):
+        outputs, state = tf.nn.dynamic_rnn(rnn_cell, text1_vectors, dtype=tf.float32)
+        t1 = state.h
 
+      with tf.variable_scope('rnn', reuse=True):
+        outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
+        t2 = state.h
+
+      M = tf.get_variable('M', [self.d, self.d])
+      logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, M)), axis=1)
+      batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
+      self.loss = tf.reduce_mean(batch_loss)
 
 
 def main():
@@ -120,23 +138,24 @@ def main():
   hparams = create_hparams(FLAGS)
   save_hparams(hparams)
 
-  train_graph = tf.Graph()
+  train_model = SiameseModel(hparams, contrib.learn.ModeKeys.TRAIN)
 
-  with train_graph.as_default():
-    train_model = SiameseModel(hparams, contrib.learn.ModeKeys.TRAIN)
+  with train_model.graph.as_default():
     train_sess = tf.Session()
     train_sess.run(tf.tables_initializer())
     train_sess.run(train_model.iterator.init)
     train_sess.run(tf.global_variables_initializer())
 
-    while True:
-      try:
-        bs = train_sess.run(train_model.batch_size)
-        logging.info('bs: %d'%bs)
-      except tf.errors.OutOfRangeError:
-        logging.info('End of epoch!')
-        break
+  # while True:
+  #   try:
+  #     bs = train_sess.run(train_model.batch_size)
+  #     logging.info('bs: %d'%bs)
+  #   except tf.errors.OutOfRangeError:
+  #     logging.info('End of epoch!')
+  #     break
 
+  loss_v = train_sess.run(train_model.loss)
+  logging.info('Loss: %f'%loss_v)
 
 if __name__ == '__main__':
   main()
