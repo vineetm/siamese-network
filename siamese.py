@@ -1,9 +1,9 @@
 import tensorflow as tf
 import tensorflow.contrib as contrib
 from collections import namedtuple
-import argparse, os, codecs
+import argparse, os, codecs, itertools, time
 
-from pip.cmdoptions import resolve_wheel_no_use_binary
+
 from tensorflow.python.ops import lookup_ops
 from tensorflow.contrib import data
 
@@ -14,6 +14,8 @@ HPARAMS = 'hparams.json'
 
 def setup_args():
   parser = argparse.ArgumentParser()
+
+  parser.add_argument('-seed', default=1543, type=int)
 
   #Data parameters
   parser.add_argument('-data_dir', default='.', help='Data directory')
@@ -33,6 +35,7 @@ def setup_args():
 
   #Checkpoint parameters
   parser.add_argument('-out_dir', default='out', help='Directory to save model checkpoints')
+  parser.add_argument('-steps_per_stats', default=100, type=int, help='Steps after which to display stats')
 
   args = parser.parse_args()
   return args
@@ -51,7 +54,8 @@ def create_hparams(flags):
     lr = flags.lr,
     train_batch_size = flags.train_batch_size,
 
-    out_dir = flags.out_dir
+    out_dir = flags.out_dir,
+    steps_per_stats = flags.steps_per_stats
   )
 
 
@@ -127,10 +131,19 @@ class SiameseModel:
         outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
         t2 = state.h
 
-      M = tf.get_variable('M', [self.d, self.d])
+      M = tf.Variable(tf.eye(self.d))
       logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, M)), axis=1)
       batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
       self.loss = tf.reduce_mean(batch_loss)
+
+      #Define update_step
+      if mode == contrib.learn.ModeKeys.TRAIN:
+        optimizer = tf.train.AdamOptimizer(hparams.lr)
+        self.train_step = optimizer.minimize(self.loss)
+
+  def train(self, sess):
+    assert self.mode == contrib.learn.ModeKeys.TRAIN
+    return sess.run([self.train_step, self.loss])
 
 
 def main():
@@ -146,16 +159,29 @@ def main():
     train_sess.run(train_model.iterator.init)
     train_sess.run(tf.global_variables_initializer())
 
-  # while True:
-  #   try:
-  #     bs = train_sess.run(train_model.batch_size)
-  #     logging.info('bs: %d'%bs)
-  #   except tf.errors.OutOfRangeError:
-  #     logging.info('End of epoch!')
-  #     break
+  last_stats_step = 0
+  step_time = 0.0
+  epoch_num = 0
 
-  loss_v = train_sess.run(train_model.loss)
-  logging.info('Loss: %f'%loss_v)
+  for step in itertools.count():
+    try:
+      start_time = time.time()
+      _, loss = train_model.train(train_sess)
+      step_time += (time.time() - start_time)
+
+      if step - last_stats_step == hparams.steps_per_stats:
+        last_stats_step = step
+        logging.info('Step: %d loss: %f logits: %s AvgTime: %.2fs'
+                     %(step, loss, logits, step_time/hparams.steps_per_stats))
+        step_time = 0.0
+
+    except tf.errors.OutOfRangeError:
+      logging.info('Epoch: %d Done'%epoch_num)
+      epoch_num += 1
+
+      step_time = 0.0
+      train_sess.run(train_model.iterator.init)
+
 
 if __name__ == '__main__':
   main()
