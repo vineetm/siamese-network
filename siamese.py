@@ -1,5 +1,6 @@
 import tensorflow as tf
 import tensorflow.contrib as contrib
+import numpy as np
 from collections import namedtuple
 import argparse, os, codecs, itertools, time
 
@@ -16,6 +17,8 @@ def setup_args():
   parser = argparse.ArgumentParser()
 
   parser.add_argument('-seed', default=1543, type=int)
+
+  parser.add_argument('-word2vec', default=None, help='Pre-trained word embeddings')
 
   #Data parameters
   parser.add_argument('-data_dir', default='.', help='Data directory')
@@ -43,6 +46,8 @@ def setup_args():
 
 def create_hparams(flags):
   return contrib.training.HParams(
+    word2vec = flags.word2vec,
+
     data_dir = flags.data_dir,
     vocab_path = os.path.join(flags.data_dir, flags.vocab_suffix),
     text1_path = os.path.join(flags.data_dir, '%s.%s'%(flags.train_prefix, flags.text1)),
@@ -99,7 +104,6 @@ def create_train_iterator(text1_path, text2_path, labels_path, batch_size, vocab
   return BatchedInput(text1, text2, label, iterator.initializer)
 
 
-
 class SiameseModel:
   def __init__(self, hparams, mode):
     self.mode = mode
@@ -118,8 +122,14 @@ class SiameseModel:
                                               hparams.train_batch_size, self.vocab_table)
 
       self.batch_size = tf.shape(self.iterator.text1)[0]
-      # self.W = tf.get_variable('embeddings', [self.vocab, self.d])
-      self.W = tf.Variable(name='embeddings', initial_value=tf.random_uniform([self.vocab, self.d], -0.01, 0.01))
+
+      if hparams.word2vec is not None:
+        W_np = np.load(hparams.word2vec)
+        self.W = tf.Variable(name='embeddings', initial_value=W_np)
+        logging.info('Init embeddings from %s'%hparams.word2vec)
+      else:
+        self.W = tf.Variable(name='embeddings', initial_value=tf.random_uniform([self.vocab, self.d], -0.01, 0.01))
+        logging.info('Fresh embeddings from %s' % hparams.word2vec)
 
       text1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text1)
       text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
@@ -138,22 +148,13 @@ class SiameseModel:
       batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
       self.loss = tf.reduce_mean(batch_loss)
 
-      self.logits = logits
-      self.t1 = tf.reduce_mean(t1)
-      self.t2 = tf.reduce_mean(t2)
-      self.orig_text1 = self.reverse_vocab_table.lookup(self.iterator.text1)
-      self.orig_text2 = self.reverse_vocab_table.lookup(self.iterator.text2)
-
       #Define update_step
       if mode == contrib.learn.ModeKeys.TRAIN:
-        optimizer = tf.train.GradientDescentOptimizer(hparams.lr)
+        optimizer = tf.train.AdamOptimizer(hparams.lr)
         self.train_step = optimizer.minimize(self.loss)
 
   def train(self, sess):
     assert self.mode == contrib.learn.ModeKeys.TRAIN
-    # return sess.run([self.train_step, self.loss,
-    #                  self.iterator.text1, self.iterator.text2, self.iterator.labels,
-    #                  self.orig_text1, self.orig_text2, self.t1, self.t2, self.logits])
     return sess.run([self.train_step, self.loss])
 
 
@@ -180,11 +181,6 @@ def main():
       # _, loss, text1, text2, labels, orig_text1, orig_text2, t1, t2, logits = train_model.train(train_sess)
       _, loss = train_model.train(train_sess)
       step_time += (time.time() - start_time)
-
-
-      # logging.info('S:%d Orig1:%s WI1:%s mean1:%.2f'%(step, orig_text1, text1, t1))
-      # logging.info('S:%d Orig2:%s WI2:%s mean2:%.2f'%(step, orig_text2, text2, t2))
-      # logging.info('S:%d Labels: %s Logits: %s Loss: %.3f'%(step, labels, logits, loss))
 
       if step - last_stats_step == hparams.steps_per_stats:
         last_stats_step = step
