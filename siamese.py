@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow.contrib as contrib
 import numpy as np
+import math
 from collections import namedtuple
 import argparse, os, codecs, itertools, time
 
@@ -128,7 +129,8 @@ class SiameseModel:
         self.W = tf.Variable(name='embeddings', initial_value=W_np)
         logging.info('Init embeddings from %s'%hparams.word2vec)
       else:
-        self.W = tf.Variable(name='embeddings', initial_value=tf.random_uniform([self.vocab, self.d], -0.01, 0.01))
+        self.W = tf.Variable(name='embeddings', initial_value=tf.random_uniform([self.vocab, self.d], -0.01, 0.01),
+                             trainable=False)
         logging.info('Fresh embeddings from %s' % hparams.word2vec)
 
       text1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text1)
@@ -161,6 +163,7 @@ class SiameseModel:
 def main():
   FLAGS = setup_args()
   hparams = create_hparams(FLAGS)
+  logging.info(hparams)
   save_hparams(hparams)
 
   train_model = SiameseModel(hparams, contrib.learn.ModeKeys.TRAIN)
@@ -180,6 +183,11 @@ def main():
       start_time = time.time()
       # _, loss, text1, text2, labels, orig_text1, orig_text2, t1, t2, logits = train_model.train(train_sess)
       _, loss = train_model.train(train_sess)
+
+      if math.isinf(loss) or math.isnan(loss):
+        logging.error('Loss Nan/Inf: %f'%loss)
+        return
+
       step_time += (time.time() - start_time)
 
       if step - last_stats_step == hparams.steps_per_stats:
