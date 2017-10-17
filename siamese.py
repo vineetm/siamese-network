@@ -110,6 +110,7 @@ class SiameseModel:
 
     with self.graph.as_default():
       self.vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
+      self.reverse_vocab_table = lookup_ops.index_to_string_table_from_file(hparams.vocab_path)
 
       #Setup iterator
       if mode == contrib.learn.ModeKeys.TRAIN:
@@ -117,7 +118,8 @@ class SiameseModel:
                                               hparams.train_batch_size, self.vocab_table)
 
       self.batch_size = tf.shape(self.iterator.text1)[0]
-      self.W = tf.get_variable('embeddings', [self.vocab, self.d])
+      # self.W = tf.get_variable('embeddings', [self.vocab, self.d])
+      self.W = tf.Variable(name='embeddings', initial_value=tf.random_uniform([self.vocab, self.d], -0.01, 0.01))
 
       text1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text1)
       text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
@@ -136,13 +138,22 @@ class SiameseModel:
       batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
       self.loss = tf.reduce_mean(batch_loss)
 
+      self.logits = logits
+      self.t1 = tf.reduce_mean(t1)
+      self.t2 = tf.reduce_mean(t2)
+      self.orig_text1 = self.reverse_vocab_table.lookup(self.iterator.text1)
+      self.orig_text2 = self.reverse_vocab_table.lookup(self.iterator.text2)
+
       #Define update_step
       if mode == contrib.learn.ModeKeys.TRAIN:
-        optimizer = tf.train.AdamOptimizer(hparams.lr)
+        optimizer = tf.train.GradientDescentOptimizer(hparams.lr)
         self.train_step = optimizer.minimize(self.loss)
 
   def train(self, sess):
     assert self.mode == contrib.learn.ModeKeys.TRAIN
+    # return sess.run([self.train_step, self.loss,
+    #                  self.iterator.text1, self.iterator.text2, self.iterator.labels,
+    #                  self.orig_text1, self.orig_text2, self.t1, self.t2, self.logits])
     return sess.run([self.train_step, self.loss])
 
 
@@ -166,13 +177,20 @@ def main():
   for step in itertools.count():
     try:
       start_time = time.time()
+      # _, loss, text1, text2, labels, orig_text1, orig_text2, t1, t2, logits = train_model.train(train_sess)
       _, loss = train_model.train(train_sess)
       step_time += (time.time() - start_time)
 
+
+      # logging.info('S:%d Orig1:%s WI1:%s mean1:%.2f'%(step, orig_text1, text1, t1))
+      # logging.info('S:%d Orig2:%s WI2:%s mean2:%.2f'%(step, orig_text2, text2, t2))
+      # logging.info('S:%d Labels: %s Logits: %s Loss: %.3f'%(step, labels, logits, loss))
+
       if step - last_stats_step == hparams.steps_per_stats:
         last_stats_step = step
-        logging.info('Step: %d loss: %f logits: %s AvgTime: %.2fs'
-                     %(step, loss, logits, step_time/hparams.steps_per_stats))
+
+        logging.info('Step: %d loss: %f AvgTime: %.2fs'
+                     %(step, loss, step_time/hparams.steps_per_stats))
         step_time = 0.0
 
     except tf.errors.OutOfRangeError:
