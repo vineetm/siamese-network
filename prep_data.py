@@ -5,6 +5,9 @@ logging = tf.logging
 logging.set_verbosity(logging.INFO)
 
 CSV = 'csv'
+GT = 'gt'
+DISTRACTOR = 'd'
+NUM_DISTRCACTORS = 9
 
 def setup_args():
   parser = argparse.ArgumentParser()
@@ -52,12 +55,42 @@ def process_train_data(data_dir, out_dir, train_suffix, text1, text2, labels):
   fw_labels.close()
 
 
+def process_valid_data(data_dir, out_dir, valid_suffix, text1, text2):
+  valid_src_file = os.path.join(data_dir, '%s.%s' % (valid_suffix, CSV))
+  logging.info('Reading valid file: %s'%valid_src_file)
+
+  fw_txt1    = open(os.path.join(out_dir, '%s.%s' % (valid_suffix, text1)), 'w')
+  fw_txt2_gt = open(os.path.join(out_dir, '%s.%s.%s'%(valid_suffix, text2, GT)), 'w')
+
+  fw_txt2_d = []
+  for di in range(NUM_DISTRCACTORS):
+    fw = open(os.path.join(out_dir, '%s.%s.%s%d'%(valid_suffix, text2, DISTRACTOR, di)), 'w')
+    fw_txt2_d.append(fw)
+
+  distractor_start_index = 2
+  with open(valid_src_file) as fr:
+    reader = csv.reader(fr)
+    next(reader)
+
+    for row in reader:
+      assert len(row) == 11
+
+      fw_txt1.write('%s\n' % (' '.join(row[0].split(','))))
+      fw_txt2_gt.write('%s\n'%row[1])
+
+      for di, distractor in enumerate(row[distractor_start_index:]):
+        fw_txt2_d[di].write('%s\n'%distractor)
+
+
 def main():
   args = setup_args()
   logging.info(args)
 
   process_train_data(args.raw_data_dir, args.out_dir, args.train,
                      args.txt1, args.txt2, args.labels)
+
+  process_valid_data(args.raw_data_dir, args.out_dir, args.valid,
+                     args.txt1, args.txt2)
 
 
 if __name__ == '__main__':
