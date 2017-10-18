@@ -5,4 +5,4 @@ OUT_DIR='data-tmp'
 
 mkdir -p $OUT_DIR
 
-python prep_data.py $RAW_DATA_DIR $OUT_DIR
+python prep_data.py $RAW_DATA_DIR $OUT_DIR -only_valid
