@@ -1,13 +1,12 @@
-import tensorflow as tf
-import tensorflow.contrib as contrib
 import numpy as np
 import math
-from collections import namedtuple
 import argparse, os, codecs, itertools, time
 
-
+import tensorflow as tf
+import tensorflow.contrib as contrib
 from tensorflow.python.ops import lookup_ops
-from tensorflow.contrib import data
+from dataset_utils import create_valid_iterator, create_train_iterator
+
 
 logging = tf.logging
 logging.set_verbosity(logging.INFO)
@@ -27,8 +26,9 @@ def setup_args():
 
   #Training data parameters
   parser.add_argument('-train_prefix', default='train', help='Train file prefix')
-  parser.add_argument('-text1', default='text1', help='Text1 suffix')
-  parser.add_argument('-text2', default='text2', help='Text2 suffix')
+  parser.add_argument('-valid_prefix', default='valid', help='Valid file prefix')
+  parser.add_argument('-text1', default='txt1', help='Text1 suffix')
+  parser.add_argument('-text2', default='txt2', help='Text2 suffix')
   parser.add_argument('-labels', default='labels', help='Labels')
 
   #Model parameters
@@ -55,6 +55,9 @@ def create_hparams(flags):
     text2_path = os.path.join(flags.data_dir, '%s.%s' % (flags.train_prefix, flags.text2)),
     labels_path= os.path.join(flags.data_dir, '%s.%s' % (flags.train_prefix, flags.labels)),
 
+    valid_text1_path = os.path.join(flags.data_dir, '%s.%s'%(flags.valid_prefix, flags.text1)),
+    valid_text2_path=os.path.join(flags.data_dir, '%s.%s' % (flags.valid_prefix, flags.text2)),
+
     d = flags.d,
     vocab = flags.vocab,
     lr = flags.lr,
@@ -75,34 +78,6 @@ def save_hparams(hparams):
   with codecs.getwriter('utf-8')(tf.gfile.GFile(hparams_file, 'wb')) as f:
     f.write(hparams.to_json())
 
-class BatchedInput(namedtuple('BatchedInput', 'text1 text2 labels init')):
-  pass
-
-def create_train_iterator(text1_path, text2_path, labels_path, batch_size, vocab_table):
-  def convert_to_word_index(path):
-    dataset = data.TextLineDataset(path)
-
-    #Split words
-    dataset = dataset.map(lambda line: (tf.string_split([line]).values))
-
-    #Convert to word indexes using vocab_table
-    dataset = dataset.map(lambda words: (vocab_table.lookup(words)))
-
-    return dataset
-
-  text1_dataset = convert_to_word_index(text1_path)
-  text2_dataset = convert_to_word_index(text2_path)
-
-  labels_dataset = data.TextLineDataset(labels_path)
-  labels_dataset = labels_dataset.map(lambda string: tf.string_to_number(string))
-
-  dataset = data.Dataset.zip((text1_dataset, text2_dataset, labels_dataset))
-  dataset = dataset.padded_batch(batch_size, padded_shapes=(tf.TensorShape([None]), tf.TensorShape([None]), tf.TensorShape([])))
-
-  iterator = dataset.make_initializable_iterator()
-  text1, text2, label = iterator.get_next()
-
-  return BatchedInput(text1, text2, label, iterator.initializer)
 
 
 class SiameseModel:
@@ -114,6 +89,7 @@ class SiameseModel:
     self.graph = tf.Graph()
 
     with self.graph.as_default():
+      #Common to valid and train models
       self.vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
       self.reverse_vocab_table = lookup_ops.index_to_string_table_from_file(hparams.vocab_path)
 
@@ -121,9 +97,13 @@ class SiameseModel:
       if mode == contrib.learn.ModeKeys.TRAIN:
         self.iterator = create_train_iterator(hparams.text1_path, hparams.text2_path, hparams.labels_path,
                                               hparams.train_batch_size, self.vocab_table)
+      else:
+        self.iterator = create_valid_iterator(hparams.valid_text1_path, hparams.valid_text2_path,
+                                              hparams.train_batch_size, self.vocab_table)
 
       self.batch_size = tf.shape(self.iterator.text1)[0]
 
+      #Word Embedding business!
       if hparams.word2vec is not None:
         W_np = np.load(hparams.word2vec)
         self.W = tf.Variable(name='embeddings', initial_value=W_np)
@@ -134,30 +114,73 @@ class SiameseModel:
         logging.info('Fresh embeddings from %s' % hparams.word2vec)
 
       text1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text1)
-      text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
+
+      if mode == contrib.learn.ModeKeys.TRAIN:
+        text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
+      else:
+        text2_0_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2[0])
+        text2_1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2[1])
 
       rnn_cell = contrib.rnn.BasicLSTMCell(self.d)
       with tf.variable_scope('rnn'):
         outputs, state = tf.nn.dynamic_rnn(rnn_cell, text1_vectors, dtype=tf.float32)
         t1 = state.h
 
-      with tf.variable_scope('rnn', reuse=True):
-        outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
-        t2 = state.h
-
       M = tf.Variable(tf.eye(self.d))
-      logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, M)), axis=1)
-      batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
-      self.loss = tf.reduce_mean(batch_loss)
 
-      #Define update_step
       if mode == contrib.learn.ModeKeys.TRAIN:
+        with tf.variable_scope('rnn', reuse=True):
+          outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
+          t2 = state.h
+
+        logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, M)), axis=1)
+        batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
+        self.loss = tf.reduce_mean(batch_loss)
         optimizer = tf.train.AdamOptimizer(hparams.lr)
         self.train_step = optimizer.minimize(self.loss)
+
+      elif mode == contrib.learn.ModeKeys.EVAL:
+        with tf.variable_scope('rnn', reuse=True):
+          outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_0_vectors, dtype=tf.float32)
+          t2_0 = state.h
+
+        with tf.variable_scope('rnn', reuse=True):
+          outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_1_vectors, dtype=tf.float32)
+          t2_1 = state.h
+
+        logits_0 = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2_0, M)), axis=1)
+        logits_1 = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2_1, M)), axis=1)
+
+        self.s0 = tf.nn.sigmoid(logits_0)
+        self.s1 = tf.nn.sigmoid(logits_1)
+
+        #Handle for r@1
+        self.correct_1 = tf.reduce_sum(tf.cast(tf.greater(self.s0, self.s1), tf.float32))
+
 
   def train(self, sess):
     assert self.mode == contrib.learn.ModeKeys.TRAIN
     return sess.run([self.train_step, self.loss])
+
+
+  def eval(self, sess):
+    assert self.mode == contrib.learn.ModeKeys.EVAL
+
+    total = 0.0
+    total_correct = 0.0
+
+    batch_num = 0
+    while True:
+      try:
+        batch_correct, batch_size = sess.run([self.correct_1, self.batch_size])
+        total += batch_size
+        total_correct += batch_correct
+        logging.info('Batch: %d bc: %f'%(batch_num, batch_correct))
+        batch_num += 1
+
+      except tf.errors.OutOfRangeError:
+        logging.info('Eval R@1: Correct: %s Total: %s %f'%(total_correct, total, total_correct/total))
+        return
 
 
 def main():
@@ -165,6 +188,16 @@ def main():
   hparams = create_hparams(FLAGS)
   logging.info(hparams)
   save_hparams(hparams)
+
+  valid_model = SiameseModel(hparams, contrib.learn.ModeKeys.EVAL)
+  with valid_model.graph.as_default():
+    valid_sess = tf.Session()
+    valid_sess.run(tf.tables_initializer())
+    valid_sess.run(valid_model.iterator.init)
+    valid_sess.run(tf.global_variables_initializer())
+
+    valid_model.eval(valid_sess)
+  return
 
   train_model = SiameseModel(hparams, contrib.learn.ModeKeys.TRAIN)
 
@@ -181,7 +214,6 @@ def main():
   for step in itertools.count():
     try:
       start_time = time.time()
-      # _, loss, text1, text2, labels, orig_text1, orig_text2, t1, t2, logits = train_model.train(train_sess)
       _, loss = train_model.train(train_sess)
 
       if math.isinf(loss) or math.isnan(loss):

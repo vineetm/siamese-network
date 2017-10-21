@@ -57,7 +57,7 @@ def create_valid_iterator(text1_path, text2_path, batch_size, vocab_table):
 
   text2_datasets = []
   for pnum in range(NUM_TEXT2):
-    text2_datasets.append(get_word_index_dataset(text2_path%pnum, vocab_table))
+    text2_datasets.append(get_word_index_dataset('%s.p%d'%(text2_path, pnum), vocab_table))
 
   datasets_list = []
   datasets_list.append(text1_dataset)
