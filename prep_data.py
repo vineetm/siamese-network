@@ -4,10 +4,8 @@ import argparse, os, csv
 logging = tf.logging
 logging.set_verbosity(logging.INFO)
 
-MAX_DISTRATORS = 9
 CSV = 'csv'
 
-VALID_SEP = ' _DD_ '
 
 def setup_args():
   parser = argparse.ArgumentParser()
@@ -59,24 +57,32 @@ def process_train_data(data_dir, out_dir, train_suffix, text1, text2, labels):
 
 '''
 Text1: context
-Text2: GT, distractor1, distractor2, ..., distractorN 
+Text2: split into 10 files .p0, .p1, .p2, ... 
 '''
 def process_valid_data(data_dir, out_dir, valid_suffix, text1, text2):
   valid_src_file = os.path.join(data_dir, '%s.%s' % (valid_suffix, CSV))
   logging.info('Reading valid file: %s'%valid_src_file)
 
-  fw_txt1 = open(os.path.join(out_dir, '%s.%s'%(valid_suffix, text1)), 'w')
-  fw_txt2 = open(os.path.join(out_dir, '%s.%s'%(valid_suffix, text2)), 'w')
+
 
   with open(valid_src_file) as fr:
     reader = csv.reader(fr)
-    next(reader)
+    row = next(reader)
+    num_text2 = len(row) - 1
+    logging.info('num_text2: %d'%num_text2)
+
+    fw_txt1 = open(os.path.join(out_dir, '%s.%s' % (valid_suffix, text1)), 'w')
+    fw_txt2 = []
+    for pnum in range(num_text2):
+      fw = open(os.path.join(out_dir, '%s.%s.p%d' % (valid_suffix, text2, pnum)), 'w')
+      fw_txt2.append(fw)
 
     for row in reader:
-      #CTX + GT + DISTRACTORS
-      assert len(row) == MAX_DISTRATORS + 2
+      assert len(row) == num_text2 + 1
       fw_txt1.write('%s\n'%(' '.join(row[0].split(','))))
-      fw_txt2.write('%s\n'%(VALID_SEP.join(row[1:])))
+
+      for pnum, part in enumerate(row[1:]):
+        fw_txt2[pnum].write('%s\n'%part)
 
 
 def main():
