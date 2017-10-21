@@ -47,6 +47,10 @@ def create_train_iterator(text1_path, text2_path, labels_path, batch_size, vocab
   return BatchedInput(text1, text2, label, iterator.initializer)
 
 
+class BatchedValidInput(namedtuple('BatchedValidInput', 'text1 text2 init')):
+  pass
+
+
 def create_valid_iterator(text1_path, text2_path, batch_size, vocab_table):
   #Create dataset for text1
   text1_dataset = get_word_index_dataset(text1_path, vocab_table)
@@ -59,13 +63,15 @@ def create_valid_iterator(text1_path, text2_path, batch_size, vocab_table):
   datasets_list.append(text1_dataset)
   datasets_list.extend(text2_datasets)
 
-
   dataset = data.Dataset.zip(tuple(datasets_list))
   padded_shapes_list = [tf.TensorShape([None]) for _ in range(len(datasets_list))]
   dataset = dataset.padded_batch(batch_size, padded_shapes=tuple(padded_shapes_list))
 
   iterator = dataset.make_initializable_iterator()
-  return iterator
+
+  datum = iterator.get_next()
+
+  return BatchedValidInput(datum[0], datum[1:], iterator.initializer)
 
 
 def test_valid_iterator():
@@ -73,15 +79,12 @@ def test_valid_iterator():
   text2_path = 'data/valid.txt2.p%d'
   vocab_table = lookup_ops.index_table_from_file('data/vocab100k.txt', default_value=0)
 
-  iterator = create_valid_iterator(text1_path, text2_path, 32, vocab_table)
+  iterator = create_valid_iterator(text1_path, text2_path, 2, vocab_table)
   sess = tf.Session()
   sess.run(tf.tables_initializer())
-  sess.run(iterator.initializer)
+  sess.run(iterator.init)
 
-  datum = sess.run(iterator.get_next())
-  logging.info(len(datum[0]))
-
-
+  datum = sess.run(iterator)
 
 if __name__ == '__main__':
   test_valid_iterator()
