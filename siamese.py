@@ -15,9 +15,7 @@ HPARAMS = 'hparams.json'
 
 def setup_args():
   parser = argparse.ArgumentParser()
-
   parser.add_argument('-seed', default=1543, type=int)
-
   parser.add_argument('-word2vec', default=None, help='Pre-trained word embeddings')
 
   #Data parameters
@@ -40,6 +38,7 @@ def setup_args():
   #Checkpoint parameters
   parser.add_argument('-out_dir', default='out', help='Directory to save model checkpoints')
   parser.add_argument('-steps_per_stats', default=100, type=int, help='Steps after which to display stats')
+  parser.add_argument('-steps_per_eval', default=100, type=int, help='Steps after which to display stats')
 
   args = parser.parse_args()
   return args
@@ -64,7 +63,8 @@ def create_hparams(flags):
     train_batch_size = flags.train_batch_size,
 
     out_dir = flags.out_dir,
-    steps_per_stats = flags.steps_per_stats
+    steps_per_stats = flags.steps_per_stats,
+    steps_per_eval =  flags.steps_per_eval
   )
 
 
@@ -77,7 +77,6 @@ def save_hparams(hparams):
   logging.info('Saving hparams: %s'%hparams_file)
   with codecs.getwriter('utf-8')(tf.gfile.GFile(hparams_file, 'wb')) as f:
     f.write(hparams.to_json())
-
 
 
 class SiameseModel:
@@ -109,9 +108,8 @@ class SiameseModel:
         self.W = tf.Variable(name='embeddings', initial_value=W_np)
         logging.info('Init embeddings from %s'%hparams.word2vec)
       else:
-        self.W = tf.Variable(name='embeddings', initial_value=tf.random_uniform([self.vocab, self.d], -0.01, 0.01),
-                             trainable=False)
-        logging.info('Fresh embeddings from %s' % hparams.word2vec)
+        self.W = tf.get_variable(name='embeddings', shape=[hparams.vocab, hparams.d])
+        logging.info('Fresh embeddings!')
 
       text1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text1)
 
@@ -134,6 +132,7 @@ class SiameseModel:
           t2 = state.h
 
         logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, M)), axis=1)
+        self.logits = logits
         batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
         self.loss = tf.reduce_mean(batch_loss)
         optimizer = tf.train.AdamOptimizer(hparams.lr)
@@ -153,34 +152,61 @@ class SiameseModel:
 
         self.s0 = tf.nn.sigmoid(logits_0)
         self.s1 = tf.nn.sigmoid(logits_1)
+        self.logits_0 = logits_0
+        self.logits_1 = logits_1
 
         #Handle for r@1
         self.correct_1 = tf.reduce_sum(tf.cast(tf.greater(self.s0, self.s1), tf.float32))
 
+      self.saver = tf.train.Saver(tf.global_variables())
+
 
   def train(self, sess):
     assert self.mode == contrib.learn.ModeKeys.TRAIN
-    return sess.run([self.train_step, self.loss])
+    return sess.run([self.train_step, self.logits, self.loss])
 
 
-  def eval(self, sess):
+  def eval(self, sess, step):
     assert self.mode == contrib.learn.ModeKeys.EVAL
-
     total = 0.0
     total_correct = 0.0
-
     batch_num = 0
+
+    start_time = time.time()
+    logging.info('Evaluation START')
     while True:
       try:
-        batch_correct, batch_size = sess.run([self.correct_1, self.batch_size])
+        batch_correct, batch_size, s0, s1, logits_0, logits_1 = \
+          sess.run([self.correct_1, self.batch_size, self.s0, self.s1, self.logits_0, self.logits_1])
         total += batch_size
         total_correct += batch_correct
-        logging.info('Batch: %d bc: %f'%(batch_num, batch_correct))
         batch_num += 1
+        if batch_num % 50 == 0:
+          logging.info('Evaluation bnum: %d Correct: %d/%d s0: %s s1: %s l0:%s l1:%s'
+                     %(batch_num, total_correct, total, s0, s1, logits_0, logits_1))
 
       except tf.errors.OutOfRangeError:
-        logging.info('Eval R@1: Correct: %s Total: %s %f'%(total_correct, total, total_correct/total))
+        r1 = total_correct/total
+        logging.info('Evaluation END')
+        logging.info('Step: %d Eval R1:%.4f Correct:%.1f Total:%1.f Time: %.2fs'%
+                     (step, r1, total_correct, total, time.time() - start_time))
         return
+
+  def __str__(self):
+    logging.info('Graph: %s'%self.graph)
+
+#Setup session with latest model
+def load_saved_model(model, sess, model_dir, msg):
+  with model.graph.as_default():
+    latest_ckpt = tf.train.latest_checkpoint(model_dir)
+    if latest_ckpt:
+      model.saver.restore(sess, latest_ckpt)
+      logging.info('%s: Restored saved model: %s' %(msg, latest_ckpt))
+    else:
+      logging.info('%s: Fresh model!'%msg)
+      sess.run(tf.global_variables_initializer())
+    sess.run(tf.tables_initializer())
+    sess.run(model.iterator.init)
 
 
 def main():
@@ -188,46 +214,50 @@ def main():
   hparams = create_hparams(FLAGS)
   logging.info(hparams)
   save_hparams(hparams)
+  tf.set_random_seed(FLAGS.seed)
 
+  # Setup valid model and session
   valid_model = SiameseModel(hparams, contrib.learn.ModeKeys.EVAL)
-  with valid_model.graph.as_default():
-    valid_sess = tf.Session()
-    valid_sess.run(tf.tables_initializer())
-    valid_sess.run(valid_model.iterator.init)
-    valid_sess.run(tf.global_variables_initializer())
+  valid_sess = tf.Session(graph=valid_model.graph)
+  logging.info('Created Valid Model')
 
-    valid_model.eval(valid_sess)
-  return
-
+  #Setup train model and session
   train_model = SiameseModel(hparams, contrib.learn.ModeKeys.TRAIN)
+  train_sess = tf.Session(graph=train_model.graph)
+  load_saved_model(train_model, train_sess, hparams.out_dir, "train")
+  logging.info('Created Train Model')
 
-  with train_model.graph.as_default():
-    train_sess = tf.Session()
-    train_sess.run(tf.tables_initializer())
-    train_sess.run(train_model.iterator.init)
-    train_sess.run(tf.global_variables_initializer())
-
+  #Training Loop
   last_stats_step = 0
+  last_eval_step = 0
   step_time = 0.0
   epoch_num = 0
 
   for step in itertools.count():
     try:
       start_time = time.time()
-      _, loss = train_model.train(train_sess)
+      _, logits, loss = train_model.train(train_sess)
 
       if math.isinf(loss) or math.isnan(loss):
         logging.error('Loss Nan/Inf: %f'%loss)
         return
-
       step_time += (time.time() - start_time)
 
+      #Time to print stats?
       if step - last_stats_step == hparams.steps_per_stats:
         last_stats_step = step
-
-        logging.info('Step: %d loss: %f AvgTime: %.2fs'
-                     %(step, loss, step_time/hparams.steps_per_stats))
+        logging.info('Step: %d logits: %s loss: %f AvgTime: %.2fs'%(step, logits, loss, step_time/hparams.steps_per_stats))
         step_time = 0.0
+
+      #Time to evaluate model?
+      if step - last_eval_step == hparams.steps_per_eval:
+        train_model.saver.save(train_sess, os.path.join(hparams.out_dir, 'siamese.ckpt'), global_step=step)
+        logging.info('Saved Training Model at step: %d'%step)
+
+        #Perform eval on saved model
+        load_saved_model(valid_model, valid_sess, hparams.out_dir, "eval")
+        valid_model.eval(valid_sess, step)
+        last_eval_step = step
 
     except tf.errors.OutOfRangeError:
       logging.info('Epoch: %d Done'%epoch_num)
@@ -235,7 +265,6 @@ def main():
 
       step_time = 0.0
       train_sess.run(train_model.iterator.init)
-
 
 if __name__ == '__main__':
   main()
