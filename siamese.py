@@ -132,7 +132,6 @@ class SiameseModel:
           t2 = state.h
 
         logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, M)), axis=1)
-        self.logits = logits
         batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
         self.loss = tf.reduce_mean(batch_loss)
         optimizer = tf.train.AdamOptimizer(hparams.lr)
@@ -152,8 +151,6 @@ class SiameseModel:
 
         self.s0 = tf.nn.sigmoid(logits_0)
         self.s1 = tf.nn.sigmoid(logits_1)
-        self.logits_0 = logits_0
-        self.logits_1 = logits_1
 
         #Handle for r@1
         self.correct_1 = tf.reduce_sum(tf.cast(tf.greater(self.s0, self.s1), tf.float32))
@@ -163,7 +160,7 @@ class SiameseModel:
 
   def train(self, sess):
     assert self.mode == contrib.learn.ModeKeys.TRAIN
-    return sess.run([self.train_step, self.logits, self.loss])
+    return sess.run([self.train_step, self.loss])
 
 
   def eval(self, sess, step):
@@ -176,14 +173,12 @@ class SiameseModel:
     logging.info('Evaluation START')
     while True:
       try:
-        batch_correct, batch_size, s0, s1, logits_0, logits_1 = \
-          sess.run([self.correct_1, self.batch_size, self.s0, self.s1, self.logits_0, self.logits_1])
+        batch_correct, batch_size, s0, s1 = sess.run([self.correct_1, self.batch_size, self.s0, self.s1])
         total += batch_size
         total_correct += batch_correct
         batch_num += 1
         if batch_num % 50 == 0:
-          logging.info('Evaluation bnum: %d Correct: %d/%d s0: %s s1: %s l0:%s l1:%s'
-                     %(batch_num, total_correct, total, s0, s1, logits_0, logits_1))
+          logging.info('Evaluation bnum: %d Correct: %d/%d s0: %s s1: %s'%(batch_num, total_correct, total, s0, s1))
 
       except tf.errors.OutOfRangeError:
         r1 = total_correct/total
@@ -236,7 +231,7 @@ def main():
   for step in itertools.count():
     try:
       start_time = time.time()
-      _, logits, loss = train_model.train(train_sess)
+      _, loss = train_model.train(train_sess)
 
       if math.isinf(loss) or math.isnan(loss):
         logging.error('Loss Nan/Inf: %f'%loss)
@@ -246,7 +241,7 @@ def main():
       #Time to print stats?
       if step - last_stats_step == hparams.steps_per_stats:
         last_stats_step = step
-        logging.info('Step: %d logits: %s loss: %f AvgTime: %.2fs'%(step, logits, loss, step_time/hparams.steps_per_stats))
+        logging.info('Step: %d loss: %f AvgTime: %.2fs'%(step, loss, step_time/hparams.steps_per_stats))
         step_time = 0.0
 
       #Time to evaluate model?
