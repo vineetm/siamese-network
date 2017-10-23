@@ -175,7 +175,7 @@ class SiameseModel:
 
     assert self.mode == contrib.learn.ModeKeys.EVAL
     total = 0.0
-    batch_num = 0
+    # batch_num = 0
 
     total_correct = {}
     for k in RK:
@@ -192,13 +192,13 @@ class SiameseModel:
         for k in RK:
           batch_correct = np.sum(sorted_indexes[:k][:] == 0)
           total_correct[k] += batch_correct
-        batch_num += 1
+        # batch_num += 1
 
       except tf.errors.OutOfRangeError:
         logging.info('Evaluation END')
         logging.info('Correct: %s Total: %d'%(total_correct, total))
         logging.info('Batch: %d Recall: %s Time: %.2fs' %(step, calculate_recall(total_correct, total), (time.time() - start_time)))
-        return
+        return int(total_correct[1])
 
   def __str__(self):
     logging.info('Graph: %s'%self.graph)
@@ -229,6 +229,12 @@ def main():
   valid_sess = tf.Session(graph=valid_model.graph)
   logging.info('Created Valid Model')
 
+  #Create directory for saving best valid model
+  valid_model_dir = os.path.join(hparams.out_dir, 'best_valid')
+  logging.info('Create Valid model directory: %s'%valid_model_dir)
+  tf.gfile.MakeDirs(valid_model_dir)
+
+
   #Setup train model and session
   train_model = SiameseModel(hparams, contrib.learn.ModeKeys.TRAIN)
   train_sess = tf.Session(graph=train_model.graph)
@@ -240,6 +246,8 @@ def main():
   last_eval_step = 0
   step_time = 0.0
   epoch_num = 0
+
+  best_eval_score = 0
 
   for step in itertools.count():
     try:
@@ -264,8 +272,13 @@ def main():
 
         #Perform eval on saved model
         load_saved_model(valid_model, valid_sess, hparams.out_dir, "eval")
-        valid_model.eval(valid_sess, step)
-        last_eval_step = step
+        current_eval = valid_model.eval(valid_sess, step)
+        if current_eval > best_eval_score:
+          valid_model.saver.save(valid_sess, os.path.join(valid_model_dir, 'siamese.ckpt'), global_step=step)
+          logging.info('Step:%d New_Score: %d Old_Score: %d Saved model'%(step, current_eval, best_eval_score))
+          best_eval_score = current_eval
+        else:
+          logging.info('Step:%d New_Score: %d Old_Score: %d Not saved!'%(step, current_eval, best_eval_score))
 
     except tf.errors.OutOfRangeError:
       logging.info('Epoch: %d Done'%epoch_num)
