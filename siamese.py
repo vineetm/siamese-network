@@ -261,9 +261,9 @@ def main():
 
       #Time to print stats?
       if step - last_stats_step == hparams.steps_per_stats:
-        last_stats_step = step
         logging.info('Step: %d loss: %f AvgTime: %.2fs'%(step, loss, step_time/hparams.steps_per_stats))
         step_time = 0.0
+        last_stats_step = step
 
       #Time to evaluate model?
       if step - last_eval_step == hparams.steps_per_eval:
@@ -279,9 +279,21 @@ def main():
           best_eval_score = current_eval
         else:
           logging.info('Step:%d New_Score: %d Old_Score: %d Not saved!'%(step, current_eval, best_eval_score))
+          last_eval_step = step
 
     except tf.errors.OutOfRangeError:
       logging.info('Epoch: %d Done'%epoch_num)
+      # Perform eval on saved model
+      load_saved_model(valid_model, valid_sess, hparams.out_dir, "eval")
+      current_eval = valid_model.eval(valid_sess, step)
+      if current_eval > best_eval_score:
+        valid_model.saver.save(valid_sess, os.path.join(valid_model_dir, 'siamese.ckpt'), global_step=step)
+        logging.info('Step:%d New_Score: %d Old_Score: %d Saved model' % (step, current_eval, best_eval_score))
+        best_eval_score = current_eval
+      else:
+        logging.info('Step:%d New_Score: %d Old_Score: %d Not saved!' % (step, current_eval, best_eval_score))
+        last_eval_step = step
+
       epoch_num += 1
 
       step_time = 0.0
