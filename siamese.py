@@ -293,7 +293,7 @@ def main():
         best_eval_score = current_eval
       else:
         logging.info('Step:%d New_Score: %d Old_Score: %d Not saved!' % (step, current_eval, best_eval_score))
-        last_eval_step = step
+      last_eval_step = step
 
       epoch_num += 1
 
