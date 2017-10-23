@@ -13,6 +13,9 @@ logging.set_verbosity(logging.INFO)
 
 HPARAMS = 'hparams.json'
 
+#Retrieval related constants
+RK = [1, 2, 5]
+
 def setup_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('-seed', default=1543, type=int)
@@ -135,15 +138,13 @@ class SiameseModel:
         self.train_step = optimizer.minimize(self.loss)
 
       elif mode == contrib.learn.ModeKeys.EVAL:
-        all_text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
-
         all_logits = []
         #FIXME: This is ugly
         for i in range(10):
+          text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2[i])
           with tf.variable_scope('rnn', reuse=True):
-            outputs, state = tf.nn.dynamic_rnn(rnn_cell, all_text2_vectors[i], dtype=tf.float32)
+            outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
             t2 = state.h
-
           logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, self.M)), axis=1)
           all_logits.append(logits)
         self.all_logits = all_logits
@@ -166,11 +167,19 @@ class SiameseModel:
     assert self.mode == contrib.learn.ModeKeys.TRAIN
     return sess.run([self.train_step, self.loss])
 
+
   def eval(self, sess, step):
+    def calculate_recall(total_correct, total):
+      rstr = ['R@%d=%.2f' % (k, total_correct[k] / total) for k in RK]
+      return ' '.join(rstr)
+
     assert self.mode == contrib.learn.ModeKeys.EVAL
     total = 0.0
-    total_correct = 0.0
     batch_num = 0
+
+    total_correct = {}
+    for k in RK:
+      total_correct[k] = 0.0
 
     start_time = time.time()
     logging.info('Evaluation START')
@@ -178,18 +187,17 @@ class SiameseModel:
       try:
         all_logits, batch_size = sess.run([self.all_logits, self.batch_size])
         total += batch_size
-        max_indexes = np.argmax(all_logits, axis=1)
-        batch_correct = np.sum(max_indexes == 0)
-        total_correct += batch_correct
+        sorted_indexes = np.argsort(all_logits, axis=0)
+
+        for k in RK:
+          batch_correct = np.sum(sorted_indexes[:k][:] == 0)
+          total_correct[k] += batch_correct
         batch_num += 1
-  #       if batch_num % 50 == 0:
-        logging.info('Evaluation bnum: %d Correct: %d/%d'%(batch_num, total_correct, total))
-  #
+
       except tf.errors.OutOfRangeError:
-        r1 = total_correct/total
         logging.info('Evaluation END')
-        logging.info('Eval:: Step: %d  R1:%.4f Correct:%.1f Total:%1.f Time: %.2fs'%
-                     (step, r1, total_correct, total, time.time() - start_time))
+        logging.info('Correct: %s Total: %d'%(total_correct, total))
+        logging.info('Batch: %d Recall: %s Time: %.2fs' %(step, calculate_recall(total_correct, total), (time.time() - start_time)))
         return
 
   def __str__(self):
