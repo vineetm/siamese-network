@@ -34,6 +34,7 @@ def setup_args():
   parser.add_argument('-vocab', default=100000, type=int, help='Vocab size')
   parser.add_argument('-lr', default=1.0, type=float, help='Learning rate')
   parser.add_argument('-train_batch_size', default=128, type=int, help='Train batch Size')
+  parser.add_argument('-valid_batch_size', default=128, type=int, help='Train batch Size')
 
   #Checkpoint parameters
   parser.add_argument('-out_dir', default='out', help='Directory to save model checkpoints')
@@ -61,6 +62,7 @@ def create_hparams(flags):
     vocab = flags.vocab,
     lr = flags.lr,
     train_batch_size = flags.train_batch_size,
+    valid_batch_size=flags.valid_batch_size,
 
     out_dir = flags.out_dir,
     steps_per_stats = flags.steps_per_stats,
@@ -81,14 +83,22 @@ def save_hparams(hparams):
 
 class SiameseModel:
   def __init__(self, hparams, mode):
+    if mode == contrib.learn.ModeKeys.TRAIN:
+      logging.info('Creating Training Model')
+    else:
+      logging.info('Creating Valid Model')
+
+    #Specify Train or Validation model
     self.mode = mode
+
+    #Units, Vocab size
     self.d = hparams.d
     self.vocab = hparams.vocab
 
+    #Create a new graph
     self.graph = tf.Graph()
 
     with self.graph.as_default():
-      #Common to valid and train models
       self.vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
       self.reverse_vocab_table = lookup_ops.index_to_string_table_from_file(hparams.vocab_path)
 
@@ -98,70 +108,63 @@ class SiameseModel:
                                               hparams.train_batch_size, self.vocab_table)
       else:
         self.iterator = create_valid_iterator(hparams.valid_text1_path, hparams.valid_text2_path,
-                                              hparams.train_batch_size, self.vocab_table)
+                                              hparams.valid_batch_size, self.vocab_table)
 
+      #Batch size is dynamic, only different for the last batch...
       self.batch_size = tf.shape(self.iterator.text1)[0]
-
-      #Word Embedding business!
-      if hparams.word2vec is not None:
-        W_np = np.load(hparams.word2vec)
-        self.W = tf.Variable(name='embeddings', initial_value=W_np)
-        logging.info('Init embeddings from %s'%hparams.word2vec)
-      else:
-        self.W = tf.get_variable(name='embeddings', shape=[hparams.vocab, hparams.d])
-        logging.info('Fresh embeddings!')
+      self.create_embeddings(hparams)
 
       text1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text1)
-
-      if mode == contrib.learn.ModeKeys.TRAIN:
-        text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
-      else:
-        text2_0_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2[0])
-        text2_1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2[1])
-
       rnn_cell = contrib.rnn.BasicLSTMCell(self.d)
       with tf.variable_scope('rnn'):
         outputs, state = tf.nn.dynamic_rnn(rnn_cell, text1_vectors, dtype=tf.float32)
         t1 = state.h
+      self.M = tf.Variable(tf.eye(self.d))
 
-      M = tf.Variable(tf.eye(self.d))
 
       if mode == contrib.learn.ModeKeys.TRAIN:
+        text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
         with tf.variable_scope('rnn', reuse=True):
           outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
           t2 = state.h
 
-        logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, M)), axis=1)
+        logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, self.M)), axis=1)
         batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
         self.loss = tf.reduce_mean(batch_loss)
         optimizer = tf.train.AdamOptimizer(hparams.lr)
         self.train_step = optimizer.minimize(self.loss)
 
       elif mode == contrib.learn.ModeKeys.EVAL:
-        with tf.variable_scope('rnn', reuse=True):
-          outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_0_vectors, dtype=tf.float32)
-          t2_0 = state.h
+        all_text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
 
-        with tf.variable_scope('rnn', reuse=True):
-          outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_1_vectors, dtype=tf.float32)
-          t2_1 = state.h
+        all_logits = []
+        #FIXME: This is ugly
+        for i in range(10):
+          with tf.variable_scope('rnn', reuse=True):
+            outputs, state = tf.nn.dynamic_rnn(rnn_cell, all_text2_vectors[i], dtype=tf.float32)
+            t2 = state.h
 
-        logits_0 = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2_0, M)), axis=1)
-        logits_1 = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2_1, M)), axis=1)
-
-        self.s0 = tf.nn.sigmoid(logits_0)
-        self.s1 = tf.nn.sigmoid(logits_1)
-
-        #Handle for r@1
-        self.correct_1 = tf.reduce_sum(tf.cast(tf.greater(self.s0, self.s1), tf.float32))
+          logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, self.M)), axis=1)
+          all_logits.append(logits)
+        self.all_logits = all_logits
 
       self.saver = tf.train.Saver(tf.global_variables())
+
+
+  def create_embeddings(self, hparams):
+    # Word Embedding business!
+    if hparams.word2vec is None:
+      self.W = tf.get_variable(name='embeddings', shape=[hparams.vocab, hparams.d])
+      logging.info('Fresh embeddings!')
+    else:
+      W_np = np.load(hparams.word2vec)
+      self.W = tf.Variable(name='embeddings', initial_value=W_np)
+      logging.info('Init embeddings from %s' % hparams.word2vec)
 
 
   def train(self, sess):
     assert self.mode == contrib.learn.ModeKeys.TRAIN
     return sess.run([self.train_step, self.loss])
-
 
   def eval(self, sess, step):
     assert self.mode == contrib.learn.ModeKeys.EVAL
@@ -173,17 +176,19 @@ class SiameseModel:
     logging.info('Evaluation START')
     while True:
       try:
-        batch_correct, batch_size, s0, s1 = sess.run([self.correct_1, self.batch_size, self.s0, self.s1])
+        all_logits, batch_size = sess.run([self.all_logits, self.batch_size])
         total += batch_size
+        max_indexes = np.argmax(all_logits, axis=1)
+        batch_correct = np.sum(max_indexes == 0)
         total_correct += batch_correct
         batch_num += 1
-        if batch_num % 50 == 0:
-          logging.info('Evaluation bnum: %d Correct: %d/%d s0: %s s1: %s'%(batch_num, total_correct, total, s0, s1))
-
+  #       if batch_num % 50 == 0:
+        logging.info('Evaluation bnum: %d Correct: %d/%d'%(batch_num, total_correct, total))
+  #
       except tf.errors.OutOfRangeError:
         r1 = total_correct/total
         logging.info('Evaluation END')
-        logging.info('Step: %d Eval R1:%.4f Correct:%.1f Total:%1.f Time: %.2fs'%
+        logging.info('Eval:: Step: %d  R1:%.4f Correct:%.1f Total:%1.f Time: %.2fs'%
                      (step, r1, total_correct, total, time.time() - start_time))
         return
 
