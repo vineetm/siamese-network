@@ -182,7 +182,7 @@ class SiameseModel:
       total_correct[k] = 0.0
 
     start_time = time.time()
-    logging.info('Evaluation START')
+    logging.info('Step: %d Evaluation START'%step)
     while True:
       try:
         all_logits, batch_size = sess.run([self.all_logits, self.batch_size])
@@ -195,9 +195,9 @@ class SiameseModel:
         # batch_num += 1
 
       except tf.errors.OutOfRangeError:
-        logging.info('Evaluation END')
-        logging.info('Correct: %s Total: %d'%(total_correct, total))
-        logging.info('Batch: %d Recall: %s Time: %.2fs' %(step, calculate_recall(total_correct, total), (time.time() - start_time)))
+        logging.info('Step: %d Evaluation END'%step)
+        logging.info('Step: %d Correct: %s Total: %d'%(step, total_correct, total))
+        logging.info('Step: %d Recall: %s Time: %.2fs' %(step, calculate_recall(total_correct, total), (time.time() - start_time)))
         return int(total_correct[1])
 
   def __str__(self):
@@ -229,11 +229,11 @@ def main():
   valid_sess = tf.Session(graph=valid_model.graph)
   logging.info('Created Valid Model')
 
+
   #Create directory for saving best valid model
   valid_model_dir = os.path.join(hparams.out_dir, 'best_valid')
   logging.info('Create Valid model directory: %s'%valid_model_dir)
   tf.gfile.MakeDirs(valid_model_dir)
-
 
   #Setup train model and session
   train_model = SiameseModel(hparams, contrib.learn.ModeKeys.TRAIN)
@@ -279,7 +279,8 @@ def main():
           best_eval_score = current_eval
         else:
           logging.info('Step:%d New_Score: %d Old_Score: %d Not saved!'%(step, current_eval, best_eval_score))
-          last_eval_step = step
+
+        last_eval_step = step
 
     except tf.errors.OutOfRangeError:
       logging.info('Epoch: %d Done'%epoch_num)
