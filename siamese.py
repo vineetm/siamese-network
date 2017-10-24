@@ -26,6 +26,7 @@ def setup_args():
   parser.add_argument('-vocab_suffix', default='vocab.txt', help='Vocab file suffix')
 
   #Training data parameters
+  parser.add_argument('-opt', default='sgd', help='Optimer: sgd|adam')
   parser.add_argument('-train_prefix', default='train', help='Train file prefix')
   parser.add_argument('-valid_prefix', default='valid', help='Valid file prefix')
   parser.add_argument('-text1', default='txt1', help='Text1 suffix')
@@ -137,6 +138,8 @@ class SiameseModel:
         optimizer = tf.train.AdamOptimizer(hparams.lr)
         self.train_step = optimizer.minimize(self.loss)
 
+        self.train_summary = tf.summary.scalar("train_loss", self.loss)
+
       elif mode == contrib.learn.ModeKeys.EVAL:
         all_logits = []
         #FIXME: This is ugly
@@ -155,7 +158,8 @@ class SiameseModel:
   def create_embeddings(self, hparams):
     # Word Embedding business!
     if hparams.word2vec is None:
-      self.W = tf.get_variable(name='embeddings', shape=[hparams.vocab, hparams.d])
+      # self.W = tf.get_variable(name='embeddings', shape=[hparams.vocab, hparams.d])
+      self.W = tf.truncated_normal(shape=[hparams.vocab, hparams.d])
       logging.info('Fresh embeddings!')
     else:
       W_np = np.load(hparams.word2vec)
@@ -165,13 +169,18 @@ class SiameseModel:
 
   def train(self, sess):
     assert self.mode == contrib.learn.ModeKeys.TRAIN
-    return sess.run([self.train_step, self.loss])
+    return sess.run([self.train_step, self.loss, self.train_summary])
 
 
-  def eval(self, sess, step):
+  def eval(self, sess, step, summary_writer):
+
     def calculate_recall(total_correct, total):
-      rstr = ['R@%d=%.2f' % (k, total_correct[k] / total) for k in RK]
-      return ' '.join(rstr)
+      recall = {}
+      for k in RK:
+        recall[k] = total_correct[k] / total
+        summary = tf.Summary(value=[tf.Summary.Value(tag='R@%d'%k, simple_value=recall[k])])
+        summary_writer.add_summary(summary, step)
+      return recall
 
     assert self.mode == contrib.learn.ModeKeys.EVAL
     total = 0.0
@@ -197,7 +206,10 @@ class SiameseModel:
       except tf.errors.OutOfRangeError:
         logging.info('Step: %d Evaluation END'%step)
         logging.info('Step: %d Correct: %s Total: %d'%(step, total_correct, total))
-        logging.info('Step: %d Recall: %s Time: %.2fs' %(step, calculate_recall(total_correct, total), (time.time() - start_time)))
+
+        recall = calculate_recall(total_correct, total)
+        recall_str = ' '.join(['R@%d=%.2f'%(k, recall[k]) for k in RK])
+        logging.info('Step: %d Recall: %s Time: %.2fs' %(step, recall_str, (time.time() - start_time)))
         return int(total_correct[1])
 
   def __str__(self):
@@ -249,15 +261,21 @@ def main():
 
   best_eval_score = 0
 
+  #Setup summary writer
+  summary_writer = tf.summary.FileWriter(os.path.join(hparams.out_dir, 'train_log'), train_model.graph)
+
   for step in itertools.count():
     try:
       start_time = time.time()
-      _, loss = train_model.train(train_sess)
+      _, loss, train_summary = train_model.train(train_sess)
 
       if math.isinf(loss) or math.isnan(loss):
         logging.error('Loss Nan/Inf: %f'%loss)
         return
       step_time += (time.time() - start_time)
+
+      #Write training loss summary
+      summary_writer.add_summary(train_summary, step)
 
       #Time to print stats?
       if step - last_stats_step == hparams.steps_per_stats:
@@ -272,7 +290,7 @@ def main():
 
         #Perform eval on saved model
         load_saved_model(valid_model, valid_sess, hparams.out_dir, "eval")
-        current_eval = valid_model.eval(valid_sess, step)
+        current_eval = valid_model.eval(valid_sess, step, summary_writer)
         if current_eval > best_eval_score:
           valid_model.saver.save(valid_sess, os.path.join(valid_model_dir, 'siamese.ckpt'), global_step=step)
           logging.info('Step:%d New_Score: %d Old_Score: %d Saved model'%(step, current_eval, best_eval_score))
