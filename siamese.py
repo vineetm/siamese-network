@@ -33,6 +33,8 @@ def setup_args():
   parser.add_argument('-text2', default='txt2', help='Text2 suffix')
   parser.add_argument('-labels', default='labels', help='Labels')
 
+  parser.add_argument('-max_gradient_norm', default=5.0, type=float)
+
   #Model parameters
   parser.add_argument('-d', default=300, type=int, help='#Units')
   parser.add_argument('-vocab', default=100000, type=int, help='Vocab size')
@@ -68,6 +70,8 @@ def create_hparams(flags):
     lr = flags.lr,
     train_batch_size = flags.train_batch_size,
     valid_batch_size=flags.valid_batch_size,
+
+    max_gradient_norm = flags.max_gradient_norm,
 
     out_dir = flags.out_dir,
     steps_per_stats = flags.steps_per_stats,
@@ -146,7 +150,11 @@ class SiameseModel:
           logging.error('Do not recognize the optimizer: %s'%hparams.opt)
           return
 
-        self.train_step = optimizer.minimize(self.loss)
+        params = tf.trainable_variables()
+        gradients = tf.gradients(self.loss, params)
+        clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, hparams.max_gradient_norm)
+        self.update_step = optimizer.apply_gradients(zip(clipped_gradients, params))
+        # self.train_step = optimizer.minimize(self.loss)
 
         self.train_summary = tf.summary.scalar("train_loss", self.loss)
 
@@ -179,7 +187,7 @@ class SiameseModel:
 
   def train(self, sess):
     assert self.mode == contrib.learn.ModeKeys.TRAIN
-    return sess.run([self.train_step, self.loss, self.train_summary])
+    return sess.run([self.update_step, self.loss, self.train_summary])
 
 
   def eval(self, sess, step, summary_writer):

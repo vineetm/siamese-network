@@ -50,6 +50,8 @@ We will implement our model in Tensorflow `tf1.3` and also use tensorflow datase
     ```
     See `prep_data.sh` for sample parameters
 
-
-
 #### Experiments
+1. Sample 4 learning rates between $10^{-3}$ and $10^{-4}$ with optimizer as `Adam`. Rest of the parameters are as follows:
+  * lr = 0.00035563  0.00057012  0.00027272  0.00011039
+  * d = 300, train_batch_size: 256, vocab: 100K
+  * Word embeddings initialized using `W.get_variable`, `glorot`
