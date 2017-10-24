@@ -322,7 +322,7 @@ def main():
       logging.info('Epoch: %d Done'%epoch_num)
       # Perform eval on saved model
       load_saved_model(valid_model, valid_sess, hparams.out_dir, "eval")
-      current_eval = valid_model.eval(valid_sess, step)
+      current_eval = valid_model.eval(valid_sess, step, summary_writer)
       if current_eval > best_eval_score:
         valid_model.saver.save(valid_sess, os.path.join(valid_model_dir, 'siamese.ckpt'), global_step=step)
         logging.info('Step:%d New_Score: %d Old_Score: %d Saved model' % (step, current_eval, best_eval_score))
