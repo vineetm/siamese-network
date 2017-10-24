@@ -26,7 +26,7 @@ def setup_args():
   parser.add_argument('-vocab_suffix', default='vocab.txt', help='Vocab file suffix')
 
   #Training data parameters
-  parser.add_argument('-opt', default='sgd', help='Optimer: sgd|adam')
+  parser.add_argument('-opt', default='sgd', help='Optimizer: sgd|adam')
   parser.add_argument('-train_prefix', default='train', help='Train file prefix')
   parser.add_argument('-valid_prefix', default='valid', help='Valid file prefix')
   parser.add_argument('-text1', default='txt1', help='Text1 suffix')
@@ -53,6 +53,7 @@ def create_hparams(flags):
   return contrib.training.HParams(
     word2vec = flags.word2vec,
 
+    opt = flags.opt,
     data_dir = flags.data_dir,
     vocab_path = os.path.join(flags.data_dir, flags.vocab_suffix),
     text1_path = os.path.join(flags.data_dir, '%s.%s'%(flags.train_prefix, flags.text1)),
@@ -125,7 +126,6 @@ class SiameseModel:
         t1 = state.h
       self.M = tf.Variable(tf.eye(self.d))
 
-
       if mode == contrib.learn.ModeKeys.TRAIN:
         text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
         with tf.variable_scope('rnn', reuse=True):
@@ -135,7 +135,17 @@ class SiameseModel:
         logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, self.M)), axis=1)
         batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
         self.loss = tf.reduce_mean(batch_loss)
-        optimizer = tf.train.AdamOptimizer(hparams.lr)
+
+        if hparams.opt == 'sgd':
+          logging.info('Using sgd optimizer')
+          optimizer = tf.train.GradientDescentOptimizer(hparams.lr)
+        elif hparams.opt == 'adam':
+          logging.info('Using adam optimizer')
+          optimizer = tf.train.AdamOptimizer(hparams.lr)
+        else:
+          logging.error('Do not recognize the optimizer: %s'%hparams.opt)
+          return
+
         self.train_step = optimizer.minimize(self.loss)
 
         self.train_summary = tf.summary.scalar("train_loss", self.loss)
