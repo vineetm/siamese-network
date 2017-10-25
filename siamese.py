@@ -128,7 +128,8 @@ class SiameseModel:
       with tf.variable_scope('rnn'):
         outputs, state = tf.nn.dynamic_rnn(rnn_cell, text1_vectors, dtype=tf.float32)
         t1 = state.h
-      self.M = tf.Variable(tf.eye(self.d))
+
+      self.M = tf.Variable(tf.truncated_normal([hparams.d, hparams.d]), name='M')
 
       if mode == contrib.learn.ModeKeys.TRAIN:
         text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
@@ -154,7 +155,6 @@ class SiameseModel:
         gradients = tf.gradients(self.loss, params)
         clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, hparams.max_gradient_norm)
         self.update_step = optimizer.apply_gradients(zip(clipped_gradients, params))
-        # self.train_step = optimizer.minimize(self.loss)
 
         self.train_summary = tf.summary.scalar("train_loss", self.loss)
 
@@ -177,7 +177,7 @@ class SiameseModel:
     # Word Embedding business!
     if hparams.word2vec is None:
       # self.W = tf.get_variable(name='embeddings', shape=[hparams.vocab, hparams.d])
-      self.W = tf.truncated_normal(shape=[hparams.vocab, hparams.d])
+      self.W = tf.Variable(tf.truncated_normal(shape=[hparams.vocab, hparams.d]), name='embeddings')
       logging.info('Fresh embeddings!')
     else:
       W_np = np.load(hparams.word2vec)
