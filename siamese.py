@@ -63,7 +63,8 @@ def create_hparams(flags):
     labels_path= os.path.join(flags.data_dir, '%s.%s' % (flags.train_prefix, flags.labels)),
 
     valid_text1_path = os.path.join(flags.data_dir, '%s.%s'%(flags.valid_prefix, flags.text1)),
-    valid_text2_path=os.path.join(flags.data_dir, '%s.%s' % (flags.valid_prefix, flags.text2)),
+    valid_text2_path = os.path.join(flags.data_dir, '%s.%s' % (flags.valid_prefix, flags.text2)),
+    valid_labels_path=os.path.join(flags.data_dir, '%s.%s' % (flags.valid_prefix, flags.labels)),
 
     d = flags.d,
     vocab = flags.vocab,
@@ -116,7 +117,7 @@ class SiameseModel:
         self.iterator = create_train_iterator(hparams.text1_path, hparams.text2_path, hparams.labels_path,
                                               hparams.train_batch_size, self.vocab_table)
       else:
-        self.iterator = create_valid_iterator(hparams.valid_text1_path, hparams.valid_text2_path,
+        self.iterator = create_train_iterator(hparams.valid_text1_path, hparams.valid_text2_path, hparams.valid_labels_path,
                                               hparams.valid_batch_size, self.vocab_table)
 
       #Batch size is dynamic, only different for the last batch...
@@ -126,49 +127,49 @@ class SiameseModel:
       text1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text1)
       rnn_cell = contrib.rnn.BasicLSTMCell(self.d)
       with tf.variable_scope('rnn'):
-        outputs, state = tf.nn.dynamic_rnn(rnn_cell, text1_vectors, dtype=tf.float32)
+        outputs, state = tf.nn.dynamic_rnn(rnn_cell, text1_vectors, dtype=tf.float32, sequence_length=self.iterator.len_text1)
         t1 = state.h
 
       self.M = tf.Variable(tf.truncated_normal([hparams.d, hparams.d]), name='M')
 
-      if mode == contrib.learn.ModeKeys.TRAIN:
-        text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
-        with tf.variable_scope('rnn', reuse=True):
-          outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
-          t2 = state.h
+      # if mode == contrib.learn.ModeKeys.TRAIN:
+      text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2)
+      with tf.variable_scope('rnn', reuse=True):
+        outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32, sequence_length=self.iterator.len_text2)
+        t2 = state.h
 
-        logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, self.M)), axis=1)
-        batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
-        self.loss = tf.reduce_mean(batch_loss)
+      logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, self.M)), axis=1)
+      batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=logits)
+      self.loss = tf.reduce_mean(batch_loss)
 
-        if hparams.opt == 'sgd':
-          logging.info('Using sgd optimizer')
-          optimizer = tf.train.GradientDescentOptimizer(hparams.lr)
-        elif hparams.opt == 'adam':
-          logging.info('Using adam optimizer')
-          optimizer = tf.train.AdamOptimizer(hparams.lr)
-        else:
-          logging.error('Do not recognize the optimizer: %s'%hparams.opt)
-          return
+      if hparams.opt == 'sgd':
+        logging.info('Using sgd optimizer')
+        optimizer = tf.train.GradientDescentOptimizer(hparams.lr)
+      elif hparams.opt == 'adam':
+        logging.info('Using adam optimizer')
+        optimizer = tf.train.AdamOptimizer(hparams.lr)
+      else:
+        logging.error('Do not recognize the optimizer: %s'%hparams.opt)
+        return
 
-        params = tf.trainable_variables()
-        gradients = tf.gradients(self.loss, params)
-        clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, hparams.max_gradient_norm)
-        self.update_step = optimizer.apply_gradients(zip(clipped_gradients, params))
+      params = tf.trainable_variables()
+      gradients = tf.gradients(self.loss, params)
+      clipped_gradients, gradient_norm = tf.clip_by_global_norm(gradients, hparams.max_gradient_norm)
+      self.update_step = optimizer.apply_gradients(zip(clipped_gradients, params))
 
-        self.train_summary = tf.summary.scalar("train_loss", self.loss)
+      self.train_summary = tf.summary.scalar("train_loss", self.loss)
 
-      elif mode == contrib.learn.ModeKeys.EVAL:
-        all_logits = []
-        #FIXME: This is ugly
-        for i in range(10):
-          text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2[i])
-          with tf.variable_scope('rnn', reuse=True):
-            outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
-            t2 = state.h
-          logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, self.M)), axis=1)
-          all_logits.append(logits)
-        self.all_logits = all_logits
+      # elif mode == contrib.learn.ModeKeys.EVAL:
+      #   all_logits = []
+      #   #FIXME: This is ugly
+      #   for i in range(10):
+      #     text2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.text2[i])
+      #     with tf.variable_scope('rnn', reuse=True):
+      #       outputs, state = tf.nn.dynamic_rnn(rnn_cell, text2_vectors, dtype=tf.float32)
+      #       t2 = state.h
+      #     logits = tf.reduce_sum(tf.multiply(t1, tf.matmul(t2, self.M)), axis=1)
+      #     all_logits.append(logits)
+      #   self.all_logits = all_logits
 
       self.saver = tf.train.Saver(tf.global_variables())
 
@@ -190,45 +191,65 @@ class SiameseModel:
     return sess.run([self.update_step, self.loss, self.train_summary])
 
 
-  def eval(self, sess, step, summary_writer):
-
-    def calculate_recall(total_correct, total):
-      recall = {}
-      for k in RK:
-        recall[k] = total_correct[k] / total
-        summary = tf.Summary(value=[tf.Summary.Value(tag='R@%d'%k, simple_value=recall[k])])
-        summary_writer.add_summary(summary, step)
-      return recall
-
+  def compute_loss(self, sess, step):
     assert self.mode == contrib.learn.ModeKeys.EVAL
-    total = 0.0
-    # batch_num = 0
-
-    total_correct = {}
-    for k in RK:
-      total_correct[k] = 0.0
 
     start_time = time.time()
-    logging.info('Step: %d Evaluation START'%step)
+    #Compute mean loss over the entire validation set
+    logging.info('Eval: %d Computing loss'%step)
+    num_batches = 0
+    total_loss = 0.0
     while True:
       try:
-        all_logits, batch_size = sess.run([self.all_logits, self.batch_size])
-        total += batch_size
-        sorted_indexes = np.argsort(all_logits, axis=0)
-
-        for k in RK:
-          batch_correct = np.sum(sorted_indexes[:k][:] == 0)
-          total_correct[k] += batch_correct
-        # batch_num += 1
+        loss_v = sess.run(self.loss)
+        num_batches += 1
+        total_loss += loss_v
 
       except tf.errors.OutOfRangeError:
-        logging.info('Step: %d Evaluation END'%step)
-        logging.info('Step: %d Correct: %s Total: %d'%(step, total_correct, total))
+        avg_loss = total_loss / num_batches
+        logging.info('Eval: %d Computed loss Time: %d'%(step, (time.time() - start_time)))
+        return (avg_loss, num_batches)
 
-        recall = calculate_recall(total_correct, total)
-        recall_str = ' '.join(['R@%d=%.2f'%(k, recall[k]) for k in RK])
-        logging.info('Step: %d Recall: %s Time: %.2fs' %(step, recall_str, (time.time() - start_time)))
-        return int(total_correct[1])
+
+  # def eval(self, sess, step, summary_writer):
+  #
+  #   def calculate_recall(total_correct, total):
+  #     recall = {}
+  #     for k in RK:
+  #       recall[k] = total_correct[k] / total
+  #       summary = tf.Summary(value=[tf.Summary.Value(tag='R@%d'%k, simple_value=recall[k])])
+  #       summary_writer.add_summary(summary, step)
+  #     return recall
+  #
+  #   assert self.mode == contrib.learn.ModeKeys.EVAL
+  #   total = 0.0
+  #   # batch_num = 0
+  #
+  #   total_correct = {}
+  #   for k in RK:
+  #     total_correct[k] = 0.0
+  #
+  #   start_time = time.time()
+  #   logging.info('Step: %d Evaluation START'%step)
+  #   while True:
+  #     try:
+  #       all_logits, batch_size = sess.run([self.all_logits, self.batch_size])
+  #       total += batch_size
+  #       sorted_indexes = np.argsort(all_logits, axis=0)
+  #
+  #       for k in RK:
+  #         batch_correct = np.sum(sorted_indexes[:k][:] == 0)
+  #         total_correct[k] += batch_correct
+  #       # batch_num += 1
+  #
+  #     except tf.errors.OutOfRangeError:
+  #       logging.info('Step: %d Evaluation END'%step)
+  #       logging.info('Step: %d Correct: %s Total: %d'%(step, total_correct, total))
+  #
+  #       recall = calculate_recall(total_correct, total)
+  #       recall_str = ' '.join(['R@%d=%.2f'%(k, recall[k]) for k in RK])
+  #       logging.info('Step: %d Recall: %s Time: %.2fs' %(step, recall_str, (time.time() - start_time)))
+  #       return int(total_correct[1])
 
   def __str__(self):
     logging.info('Graph: %s'%self.graph)
@@ -259,7 +280,6 @@ def main():
   valid_sess = tf.Session(graph=valid_model.graph)
   logging.info('Created Valid Model')
 
-
   #Create directory for saving best valid model
   valid_model_dir = os.path.join(hparams.out_dir, 'best_valid')
   logging.info('Create Valid model directory: %s'%valid_model_dir)
@@ -277,12 +297,13 @@ def main():
   step_time = 0.0
   epoch_num = 0
 
-  best_eval_score = 0
+  best_eval_score = 9999.0
 
   #Setup summary writer
   summary_writer = tf.summary.FileWriter(os.path.join(hparams.out_dir, 'train_log'), train_model.graph)
 
   for step in itertools.count():
+
     try:
       start_time = time.time()
       _, loss, train_summary = train_model.train(train_sess)
@@ -308,29 +329,20 @@ def main():
 
         #Perform eval on saved model
         load_saved_model(valid_model, valid_sess, hparams.out_dir, "eval")
-        current_eval = valid_model.eval(valid_sess, step, summary_writer)
-        if current_eval > best_eval_score:
+        avg_loss, num_batches = valid_model.compute_loss(valid_sess, step)
+        logging.info('Eval Step:%d Loss: %.2f Batches: %d'%(step, avg_loss, num_batches))
+
+        if avg_loss < best_eval_score:
           valid_model.saver.save(valid_sess, os.path.join(valid_model_dir, 'siamese.ckpt'), global_step=step)
-          logging.info('Step:%d New_Score: %d Old_Score: %d Saved model'%(step, current_eval, best_eval_score))
-          best_eval_score = current_eval
+          logging.info('Eval Step:%d New_Score: %s Old_Score: %s: Saved model'%(step, avg_loss, best_eval_score))
+          best_eval_score = avg_loss
         else:
-          logging.info('Step:%d New_Score: %d Old_Score: %d Not saved!'%(step, current_eval, best_eval_score))
+          logging.info('Eval Step:%d New_Score: %.2f Old_Score: %.2f: Not saved'%(step, avg_loss, best_eval_score))
 
         last_eval_step = step
 
     except tf.errors.OutOfRangeError:
       logging.info('Epoch: %d Done'%epoch_num)
-      # Perform eval on saved model
-      load_saved_model(valid_model, valid_sess, hparams.out_dir, "eval")
-      current_eval = valid_model.eval(valid_sess, step, summary_writer)
-      if current_eval > best_eval_score:
-        valid_model.saver.save(valid_sess, os.path.join(valid_model_dir, 'siamese.ckpt'), global_step=step)
-        logging.info('Step:%d New_Score: %d Old_Score: %d Saved model' % (step, current_eval, best_eval_score))
-        best_eval_score = current_eval
-      else:
-        logging.info('Step:%d New_Score: %d Old_Score: %d Not saved!' % (step, current_eval, best_eval_score))
-      last_eval_step = step
-
       epoch_num += 1
 
       step_time = 0.0

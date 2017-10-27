@@ -20,4 +20,9 @@ Pre-trained word vectors: `http://nlp.stanford.edu/data/glove.840B.300d.zip`
 
 * Separate out `ctx, utterance and label` and build vocabulary
 
-### Dual Encoder Siamese Network
+### Dataset Description
+1. Training Data:
+context, utterance, label
+
+2. Valid/Test Data: context, utterance, distractors
+    * distractors are sampled randomly from test set.

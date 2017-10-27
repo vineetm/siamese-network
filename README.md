@@ -29,7 +29,10 @@ We will implement our model in Tensorflow `tf1.3` and also use tensorflow datase
 
     cd ubuntu-ranking-dataset-creator/src
 
-    ./generate.sh -t -s -l
+    # Still need to verify if this was the approach used
+    ./generate.sh -t
+
+    ## ./generate.sh -t -s -l
     ```
 
   * This will create `train.csv, valid.csv, test.csv`
@@ -42,7 +45,12 @@ We will implement our model in Tensorflow `tf1.3` and also use tensorflow datase
 
   * Prep data for train and validation
     * For training: `train.txt1` `train.txt2` `train.labels`
-    * For R@k: `valid.txt1` `valid.txt2.p0` ... `valid.txt2.p9`.
+
+    * Validation: Original valid data has 10 parts (GT, 9 distractors). We would create a positive
+
+      * `valid.txt1`, `valid.txt2`, `valid.labels`
+
+    * For Retrieval metric: `valid.txt1` `valid.txt2.p0` ... `valid.txt2.p9`.
       * p0 is Ground Truth (GT)
 
     ```python
@@ -51,7 +59,7 @@ We will implement our model in Tensorflow `tf1.3` and also use tensorflow datase
     See `prep_data.sh` for sample parameters
 
 #### Experiments
-1. Sample 4 learning rates between $10^{-3}$ and $10^{-4}$ with optimizer as `Adam`. Rest of the parameters are as follows:
-  * lr = 0.00035563  0.00057012  0.00027272  0.00011039
-  * d = 300, train_batch_size: 256, vocab: 100K
-  * Word embeddings initialized using `W.get_variable`, `glorot`
+1. Opt='sgd', lr=0.01, 0.1, 1.0
+  * V = 100K, Word embedding matrix initialized using truncated_normal
+  * Batch_size: 256
+  * M = initialized using truncated_normal

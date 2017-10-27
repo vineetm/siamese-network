@@ -8,28 +8,16 @@ NUM_TEXT2 = 10
 logging = tf.logging
 logging.set_verbosity(logging.INFO)
 
-'''
-Convert a TextLineDataset to an correponding word indexes
-
-1. Split a string by space (assumes string to be already tokenized)
-2. Use vocab_table to assign word index
-
-Note we work on .values for output generated using tf string_split
-'''
-def get_word_index_dataset(path, vocab_table):
-  dataset = data.TextLineDataset(path)
-
-  # Split words
-  dataset = dataset.map(lambda line: (tf.string_split([line]).values))
-
-  # Convert to word indexes using vocab_table
-  dataset = dataset.map(lambda words: (vocab_table.lookup(words)))
-
-  return dataset
-
-
-class BatchedInput(namedtuple('BatchedInput', 'text1 text2 labels init')):
+class BatchedInput(namedtuple('BatchedInput', 'text1 len_text1 text2 len_text2 labels init')):
   pass
+
+def get_word_index_dataset(txt_path, vocab_table):
+  txt_dataset = data.TextLineDataset(txt_path)
+  txt_dataset = txt_dataset.map(lambda line: tf.string_split([line]).values)
+  txt_dataset = txt_dataset.map(lambda words: tf.cast(vocab_table.lookup(words), tf.int32))
+  txt_dataset = txt_dataset.map(lambda words: (words, tf.size(words)))
+  return txt_dataset
+
 
 def create_train_iterator(text1_path, text2_path, labels_path, batch_size, vocab_table):
   text1_dataset = get_word_index_dataset(text1_path, vocab_table)
@@ -39,12 +27,18 @@ def create_train_iterator(text1_path, text2_path, labels_path, batch_size, vocab
   labels_dataset = labels_dataset.map(lambda string: tf.string_to_number(string))
 
   dataset = data.Dataset.zip((text1_dataset, text2_dataset, labels_dataset))
-  dataset = dataset.padded_batch(batch_size, padded_shapes=(tf.TensorShape([None]), tf.TensorShape([None]), tf.TensorShape([])))
+
+  #Separate out txt and length
+  dataset = dataset.map(lambda t1, t2, label: (t1[0], t1[1], t2[0], t2[1], label))
+
+  dataset = dataset.padded_batch(batch_size,
+                                 padded_shapes=(tf.TensorShape([None]), tf.TensorShape([]), tf.TensorShape([None]), tf.TensorShape([]),
+                                                tf.TensorShape([])))
 
   iterator = dataset.make_initializable_iterator()
-  text1, text2, label = iterator.get_next()
+  text1, len_text1, text2, len_text2, label = iterator.get_next()
 
-  return BatchedInput(text1, text2, label, iterator.initializer)
+  return BatchedInput(text1, len_text1, text2, len_text2, label, iterator.initializer)
 
 
 class BatchedValidInput(namedtuple('BatchedValidInput', 'text1 text2 init')):
