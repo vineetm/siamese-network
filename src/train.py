@@ -140,9 +140,10 @@ def main():
   best_eval_loss = 100.0
 
   train_saver_path = os.path.join(hparams.model_dir, 'sm')
-  valid_saver_path = os.path.join(hparams.model_dir, 'best_eval/sm')
-
+  valid_saver_path = os.path.join(hparams.model_dir, 'best_eval')
   tf.gfile.MakeDirs(valid_saver_path)
+
+  valid_saver_path = os.path.join(valid_saver_path, 'sm')
 
   for step in itertools.count():
     try:
