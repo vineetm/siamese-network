@@ -79,7 +79,8 @@ class SiameseModel:
         num_batches += 1
       except tf.errors.OutOfRangeError:
         avg_loss = total_loss / num_batches
-        return avg_loss, time.time() - start_time
+        eval_summary = tf.Summary(value=[tf.Summary.Value(tag='valid_loss', simple_value=avg_loss)])
+        return avg_loss, time.time() - start_time, eval_summary
 
 
 

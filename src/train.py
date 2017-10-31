@@ -1,5 +1,5 @@
 import argparse
-import os
+import os, time
 
 import tensorflow as tf
 from tensorflow.contrib.training import HParams
@@ -36,7 +36,7 @@ def setup_args():
   parser.add_argument('-d', default=128, type=int, help='embedding size')
 
   parser.add_argument('-steps_per_eval', default=100, type=int, help='Steps per eval')
-  parser.add_argument('-steps_per_ckpt', default=50, type=int, help='Steps per ckpt')
+  parser.add_argument('-steps_per_stats', default=50, type=int, help='Steps per stats')
 
   parser.add_argument('-lr', default=1.0, type=float, help='learning rate')
   parser.add_argument('-max_norm', default=5.0, type=float, help='learning rate')
@@ -73,7 +73,7 @@ def build_hparams(args):
 
                  d = args.d,
                  steps_per_eval = args.steps_per_eval,
-                 steps_per_ckpt = args.steps_per_ckpt,
+                 steps_per_stats = args.steps_per_stats,
 
                  lr = args.lr,
                  max_norm = args.max_norm,
@@ -121,14 +121,15 @@ def main():
     valid_sess.run(tf.global_variables_initializer())
     valid_sess.run(tf.tables_initializer())
 
-    eval_loss, time_taken = valid_model.eval(valid_sess)
+    eval_loss, time_taken, _ = valid_model.eval(valid_sess)
     logging.info('Init Val Loss: %.4f Time: %ds'%(eval_loss, time_taken))
 
   #Training loop
   summary_writer = tf.summary.FileWriter(os.path.join(hparams.model_dir, 'train_log'))
   last_eval_step = 0
-  last_ckpt_step = 0
+  last_stats_step = 0
   epoch_num = 0
+  epoch_start_time = time.time()
 
   train_saver_path = os.path.join(hparams.model_dir, 'sm')
   for step in itertools.count():
@@ -136,34 +137,36 @@ def main():
       _, loss, train_summary = train_model.train(train_sess)
       summary_writer.add_summary(train_summary, step)
 
-      #Steps per ckpt, save train model
-      if step - last_ckpt_step >= hparams.steps_per_ckpt:
-        train_model.saver.save(train_sess, train_saver_path, step)
-        logging.info('Step %d: Saved Train model'%step)
-        last_ckpt_step = step
+      #Steps per stats
+      if step - last_stats_step >= hparams.steps_per_stats:
+        logging.info('Step %d: Train_Loss: %.4f'%(step, loss))
+        last_stats_step = step
 
       # Eval model and print stats
       if step - last_eval_step >= hparams.steps_per_eval:
-        logging.info('Step %d: Train_Loss: %.4f'%(step, loss))
+        logging.info('Step %d: Saved Model'%step)
+        train_model.saver.save(train_sess, train_saver_path, step)
 
         #Load last saved model from checkpoint
+        load_st_time = time.time()
         latest_ckpt = tf.train.latest_checkpoint(hparams.model_dir)
         valid_model.saver.restore(valid_sess, latest_ckpt)
-        eval_loss, time_taken = valid_model.eval(valid_sess)
+        logging.info('Step: %d Restore valid Time: %ds'%(step, time.time()-load_st_time))
+
+        eval_loss, time_taken, eval_summary = valid_model.eval(valid_sess)
         logging.info('Step %d: Val_Loss: %.4f Time: %ds' % (step, eval_loss, time_taken))
+        summary_writer.add_summary(eval_summary, step)
 
         last_eval_step = step
 
     except tf.errors.OutOfRangeError:
-      # Load last saved model from checkpoint
-      latest_ckpt = tf.train.latest_checkpoint(hparams.model_dir)
-      valid_model.saver.restore(valid_sess, latest_ckpt)
-      eval_loss, time_taken = valid_model.eval(valid_sess)
-      logging.info('Epoch %d: Step %d: Val_Loss: %.4f Time: %ds' % (epoch_num, step, eval_loss, time_taken))
+      logging.info('Epoch %d END Time: %ds'%(epoch_num, time.time() - epoch_start_time))
       epoch_num += 1
 
       with train_graph.as_default():
         train_sess.run(train_iterator.init)
+
+      epoch_start_time = time.time()
 
 
 if __name__ == '__main__':
