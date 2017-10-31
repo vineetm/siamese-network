@@ -42,6 +42,7 @@ def setup_args():
   parser.add_argument('-max_norm', default=5.0, type=float, help='learning rate')
   parser.add_argument('-opt', default='sgd', help='Optimization algo: sgd|adam')
 
+  parser.add_argument('-seed', default=1543, type=int)
   args = parser.parse_args()
   return args
 
@@ -91,7 +92,11 @@ def main():
   #Create Training graph, and session
   train_graph = tf.Graph()
 
+
   with train_graph.as_default():
+    # Set random seed
+    tf.set_random_seed(args.seed)
+
     vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
     train_iterator = create_labeled_data_iterator(hparams.train_txt1, hparams.train_txt2, hparams.train_labels,
                                                   vocab_table, hparams.train_batch_size)
@@ -107,6 +112,8 @@ def main():
   valid_graph = tf.Graph()
 
   with valid_graph.as_default():
+    # Set random seed
+    tf.set_random_seed(args.seed)
     vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
     valid_iterator = create_labeled_data_iterator(hparams.valid_txt1, hparams.valid_txt2, hparams.valid_labels,
                                                   vocab_table, hparams.valid_batch_size)
@@ -130,8 +137,12 @@ def main():
   last_stats_step = 0
   epoch_num = 0
   epoch_start_time = time.time()
+  best_eval_loss = 100.0
 
   train_saver_path = os.path.join(hparams.model_dir, 'sm')
+  valid_saver_path = os.path.join(hparams.model_dir, 'best_eval')
+  tf.gfile.MakeDirs(valid_saver_path)
+
   for step in itertools.count():
     try:
       _, loss, train_summary = train_model.train(train_sess)
@@ -156,6 +167,13 @@ def main():
         eval_loss, time_taken, eval_summary = valid_model.eval(valid_sess)
         logging.info('Step %d: Val_Loss: %.4f Time: %ds' % (step, eval_loss, time_taken))
         summary_writer.add_summary(eval_summary, step)
+
+        if eval_loss < best_eval_loss:
+          valid_model.saver.save(valid_sess, valid_saver_path, step)
+          logging.info('Step: %d New: %.4f Old: %.4f saved eval'%(step, eval_loss, best_eval_loss))
+          best_eval_loss = eval_loss
+        else:
+          logging.info('Step: %d New: %.4f Old: %.4f Not_saved eval'%(step, eval_loss, best_eval_loss))
 
         last_eval_step = step
 
