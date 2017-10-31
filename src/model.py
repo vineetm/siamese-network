@@ -2,6 +2,8 @@ import tensorflow as tf
 from tensorflow.contrib import rnn
 from tensorflow.contrib.learn import ModeKeys
 
+import time
+
 logging = tf.logging
 logging.set_verbosity(logging.INFO)
 
@@ -61,3 +63,23 @@ class SiameseModel:
   def train(self, sess):
     assert self.mode == ModeKeys.TRAIN
     return sess.run([self.train_step, self.loss, self.train_summary])
+
+  def eval(self, sess):
+    assert self.mode == ModeKeys.EVAL
+
+    #Initialize iterator
+    sess.run(self.iterator.init)
+
+    start_time = time.time()
+    total_loss = 0.0
+    num_batches = 0
+    while True:
+      try:
+        total_loss += sess.run(self.loss)
+        num_batches += 1
+      except tf.errors.OutOfRangeError:
+        avg_loss = total_loss / num_batches
+        return avg_loss, time.time() - start_time
+
+
+
