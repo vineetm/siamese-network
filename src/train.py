@@ -128,29 +128,42 @@ def main():
   summary_writer = tf.summary.FileWriter(os.path.join(hparams.model_dir, 'train_log'))
   last_eval_step = 0
   last_ckpt_step = 0
+  epoch_num = 0
 
   train_saver_path = os.path.join(hparams.model_dir, 'sm')
   for step in itertools.count():
-    _, loss, train_summary = train_model.train(train_sess)
-    summary_writer.add_summary(train_summary, step)
+    try:
+      _, loss, train_summary = train_model.train(train_sess)
+      summary_writer.add_summary(train_summary, step)
 
-    #Steps per ckpt, save train model
-    if step - last_ckpt_step >= hparams.steps_per_ckpt:
-      train_model.saver.save(train_sess, train_saver_path, step)
-      logging.info('Step %d: Saved Train model'%step)
-      last_ckpt_step = step
+      #Steps per ckpt, save train model
+      if step - last_ckpt_step >= hparams.steps_per_ckpt:
+        train_model.saver.save(train_sess, train_saver_path, step)
+        logging.info('Step %d: Saved Train model'%step)
+        last_ckpt_step = step
 
-    # Eval model and print stats
-    if step - last_eval_step >= hparams.steps_per_eval:
-      logging.info('Step %d: Train_Loss: %.4f'%(step, loss))
+      # Eval model and print stats
+      if step - last_eval_step >= hparams.steps_per_eval:
+        logging.info('Step %d: Train_Loss: %.4f'%(step, loss))
 
-      #Load last saved model from checkpoint
+        #Load last saved model from checkpoint
+        latest_ckpt = tf.train.latest_checkpoint(hparams.model_dir)
+        valid_model.saver.restore(valid_sess, latest_ckpt)
+        eval_loss, time_taken = valid_model.eval(valid_sess)
+        logging.info('Step %d: Val_Loss: %.4f Time: %ds' % (step, eval_loss, time_taken))
+
+        last_eval_step = step
+
+    except tf.errors.OutOfRangeError:
+      # Load last saved model from checkpoint
       latest_ckpt = tf.train.latest_checkpoint(hparams.model_dir)
       valid_model.saver.restore(valid_sess, latest_ckpt)
       eval_loss, time_taken = valid_model.eval(valid_sess)
-      logging.info('Step %d: Val_Loss: %.4f Time: %ds' % (step, eval_loss, time_taken))
+      logging.info('Epoch %d: Step %d: Val_Loss: %.4f Time: %ds' % (epoch_num, step, eval_loss, time_taken))
+      epoch_num += 1
 
-      last_eval_step = step
+      with train_graph.as_default():
+        train_sess.run(train_iterator.init)
 
 
 if __name__ == '__main__':
