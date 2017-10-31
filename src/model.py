@@ -36,6 +36,8 @@ class SiameseModel:
 
     self.loss = tf.reduce_mean(self.batch_loss)
 
+    self.saver = tf.train.Saver(tf.global_variables())
+
     #We only need optimizer while training
     if self.mode == ModeKeys.TRAIN:
       if hparams.opt == 'sgd':

@@ -29,14 +29,18 @@ def setup_args():
 
   parser.add_argument('-vocab_suffix', help='vocab suffix', default='vocab.txt')
 
-  parser.add_argument('-train_batch_size', default=32, type=int, help='Trainign batch size')
+  parser.add_argument('-train_batch_size', default=128, type=int, help='Train batch size')
+  parser.add_argument('-valid_batch_size', default=128, type=int, help='Valid batch size')
+
   parser.add_argument('-vocab_size', default=30000, type=int, help='vocab size')
-  parser.add_argument('-d', default=128, type=int, help='vocab size')
+  parser.add_argument('-d', default=128, type=int, help='embedding size')
+
+  parser.add_argument('-steps_per_eval', default=100, type=int, help='Steps per eval')
+  parser.add_argument('-steps_per_ckpt', default=50, type=int, help='Steps per ckpt')
 
   parser.add_argument('-lr', default=1.0, type=float, help='learning rate')
   parser.add_argument('-max_norm', default=5.0, type=float, help='learning rate')
   parser.add_argument('-opt', default='sgd', help='Optimization algo: sgd|adam')
-
 
   args = parser.parse_args()
   return args
@@ -65,8 +69,11 @@ def build_hparams(args):
                  vocab_size = args.vocab_size,
 
                  train_batch_size = args.train_batch_size,
+                 valid_batch_size=args.valid_batch_size,
 
                  d = args.d,
+                 steps_per_eval = args.steps_per_eval,
+                 steps_per_ckpt = args.steps_per_ckpt,
 
                  lr = args.lr,
                  max_norm = args.max_norm,
@@ -81,7 +88,7 @@ def main():
   hparams = build_hparams(args)
   logging.info(hparams)
 
-  #Create Training graph
+  #Create Training graph, and session
   train_graph = tf.Graph()
 
   with train_graph.as_default():
@@ -90,20 +97,33 @@ def main():
                                                   vocab_table, hparams.train_batch_size)
     train_model = SiameseModel(hparams, train_iterator, ModeKeys.TRAIN)
 
-
-  summary_writer = tf.summary.FileWriter(os.path.join(hparams.model_dir, 'train_log'))
-
-  train_sess = tf.Session(graph=train_graph)
-  with train_graph.as_default():
+    #Create Training session and init its variables, tables and iterator.
+    train_sess = tf.Session()
     train_sess.run(tf.global_variables_initializer())
     train_sess.run(tf.tables_initializer())
     train_sess.run(train_iterator.init)
 
+  #Training loop
+  summary_writer = tf.summary.FileWriter(os.path.join(hparams.model_dir, 'train_log'))
+  last_eval_step = 0
+  last_ckpt_step = 0
+
+  train_saver_path = os.path.join(hparams.model_dir, 'sm')
   for step in itertools.count():
     _, loss, train_summary = train_model.train(train_sess)
     summary_writer.add_summary(train_summary, step)
-    logging.info('Step: %d Loss: %.2f'%(step, loss))
 
+
+    #Steps per ckpt
+    if step - last_ckpt_step >= hparams.steps_per_ckpt:
+      train_model.saver.save(train_sess, train_saver_path, step)
+      logging.info('Step %d: Saved Train model'%step)
+      last_ckpt_step = step
+
+    # Steps per ckpt
+    if step - last_eval_step >= hparams.steps_per_eval:
+      logging.info('Step %d: Loss: %.4f'%(step, loss))
+      last_eval_step = step
 
 
 if __name__ == '__main__':
