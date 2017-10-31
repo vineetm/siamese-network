@@ -21,21 +21,23 @@ Inputs
 * dataset_file_path: Each line contains one string
 * vocab_table: Vocab lookup table initialized using lookup_ops
 '''
-def create_wordindex_with_length_dataset(dataset_file_path, vocab_table):
+def create_wordindex_with_length_dataset(dataset_file_path, vocab_table, max_len=160):
   text_dataset = data.TextLineDataset(dataset_file_path)
   text_dataset = text_dataset.map(lambda line: tf.string_split([line]).values)
   text_dataset = text_dataset.map(lambda words: vocab_table.lookup(words))
+  if max_len > 0:
+    text_dataset = text_dataset.map(lambda words: words[-max_len:])
   text_dataset = text_dataset.map(lambda words: (tf.cast(words, tf.int32), tf.size(words)))
   return text_dataset
 
 
-class BatchedInput(namedtuple('BatchedInput', 'txt1 txt2 len_txt1 len_txt2 label init')):
+class BatchedInput(namedtuple('BatchedInput', 'txt1 txt2 len_txt1 len_txt2 labels init')):
   pass
 
 
 def create_labeled_data_iterator(txt1, txt2, labels, vocab_table, batch_size):
   text1_dataset = create_wordindex_with_length_dataset(txt1, vocab_table)
-  text2_dataset = create_wordindex_with_length_dataset(txt2, vocab_table)
+  text2_dataset = create_wordindex_with_length_dataset(txt2, vocab_table, -1)
 
   # Labels is a single float
   labels_dataset = data.TextLineDataset(labels)
