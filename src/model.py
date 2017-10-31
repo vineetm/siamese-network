@@ -46,18 +46,15 @@ class SiameseModel:
         self.opt = None
         logging.error('Bad optimization param!')
 
-      # #Now, let us clip gradients as we are dealing with RNN
-      # params = tf.trainable_variables()
-      # logging.info('Trainable params: %s'%params)
-      #
-      # gradients = tf.gradients(self.loss, params)
-      # clipped_gradients, self.grad_norm = tf.clip_by_global_norm(gradients, hparams.max_norm)
-      # self.train_step = self.opt.apply_gradients(zip(params, clipped_gradients))
-      # self.train_summary = tf.summary.merge([tf.summary.scalar('loss', self.loss),
-      #                                        tf.summary.scalar('grad_norm', self.grad_norm)])
+      #Now, let us clip gradients as we are dealing with RNN
+      params = tf.trainable_variables()
+      logging.info('Trainable params: %s'%params)
 
-      self.train_step = self.opt.minimize(self.loss)
-      self.train_summary = tf.summary.scalar('loss', self.loss)
+      gradients = tf.gradients(self.loss, params)
+      clipped_gradients, self.grad_norm = tf.clip_by_global_norm(gradients, hparams.max_norm)
+      self.train_step = self.opt.apply_gradients(zip(clipped_gradients, params))
+      self.train_summary = tf.summary.merge([tf.summary.scalar('train_loss', self.loss),
+                                             tf.summary.scalar('grad_norm', self.grad_norm)])
 
   def train(self, sess):
     assert self.mode == ModeKeys.TRAIN
