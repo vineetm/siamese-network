@@ -18,7 +18,7 @@ def setup_args():
   parser.add_argument('-txt1')
   parser.add_argument('-txt2')
   parser.add_argument('-out')
-
+  parser.add_argument('-batch_size', default=256, type=int)
   args = parser.parse_args()
   return args
 
@@ -46,7 +46,7 @@ def main():
   logging.info(hparams)
 
   vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
-  iterator = create_data_iterator(args.txt1, args.txt2, vocab_table, 16)
+  iterator = create_data_iterator(args.txt1, args.txt2, vocab_table, args.batch_size)
   infer_model = SiameseModel(hparams, iterator, ModeKeys.INFER)
 
   with tf.Session() as sess:

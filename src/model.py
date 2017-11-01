@@ -66,12 +66,16 @@ class SiameseModel:
     # Initialize iterator
     sess.run(self.iterator.init)
 
+    covered = 0
     fw = open(out_file, 'w')
     while True:
       try:
         logits = sess.run(self.logits)
         for logit in logits:
           fw.write('%.4f\n'%logit)
+        covered += len(logits)
+        if covered % 1024 == 0:
+          logging.info('Completed %d'%covered)
       except tf.errors.OutOfRangeError:
         fw.close()
         return
