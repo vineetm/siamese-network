@@ -1,5 +1,6 @@
 import argparse
 import os, time
+import codecs
 
 import tensorflow as tf
 from tensorflow.contrib.training import HParams
@@ -84,14 +85,23 @@ def build_hparams(args):
                  )
 
 
+def save_hparams(hparams):
+  hparams_file = os.path.join(hparams.model_dir, "hparams")
+  logging.info("Saving hparams to %s" % hparams_file)
+  with codecs.getwriter("utf-8")(tf.gfile.GFile(hparams_file, "wb")) as f:
+    f.write(hparams.to_json())
+
+
 def main():
   args = setup_args()
   hparams = build_hparams(args)
+
+  #Save hparams
   logging.info(hparams)
+  save_hparams(hparams)
 
   #Create Training graph, and session
   train_graph = tf.Graph()
-
 
   with train_graph.as_default():
     # Set random seed
