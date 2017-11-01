@@ -34,11 +34,11 @@ class SiameseModel:
     self.M = tf.Variable(tf.eye(self.d), name='M')
 
     self.logits = tf.reduce_sum(tf.multiply(self.c, tf.matmul(self.r, self.M)), axis=1)
-    self.batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=self.logits)
-
-    self.loss = tf.reduce_mean(self.batch_loss)
-
     self.saver = tf.train.Saver(tf.global_variables())
+
+    if self.mode == ModeKeys.TRAIN or self.mode == ModeKeys.EVAL:
+      self.batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.iterator.labels, logits=self.logits)
+      self.loss = tf.reduce_mean(self.batch_loss)
 
     #We only need optimizer while training
     if self.mode == ModeKeys.TRAIN:
@@ -59,6 +59,23 @@ class SiameseModel:
       self.train_step = self.opt.apply_gradients(zip(clipped_gradients, params))
       self.train_summary = tf.summary.merge([tf.summary.scalar('train_loss', self.loss),
                                              tf.summary.scalar('grad_norm', self.grad_norm)])
+
+
+  def compute_scores(self, sess, out_file):
+    assert self.mode == ModeKeys.INFER
+    # Initialize iterator
+    sess.run(self.iterator.init)
+
+    fw = open(out_file, 'w')
+    while True:
+      try:
+        logits = sess.run(self.logits)
+        for logit in logits:
+          fw.write('%.4f\n'%logit)
+      except tf.errors.OutOfRangeError:
+        fw.close()
+        return
+
 
   def train(self, sess):
     assert self.mode == ModeKeys.TRAIN
@@ -81,6 +98,3 @@ class SiameseModel:
         avg_loss = total_loss / num_batches
         eval_summary = tf.Summary(value=[tf.Summary.Value(tag='valid_loss', simple_value=avg_loss)])
         return avg_loss, time.time() - start_time, eval_summary
-
-
-

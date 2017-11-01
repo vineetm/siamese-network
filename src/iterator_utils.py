@@ -57,3 +57,25 @@ def create_labeled_data_iterator(txt1, txt2, labels, vocab_table, batch_size):
   txt1, txt2, len_txt1, len_txt2, label = iterator.get_next()
 
   return BatchedInput(txt1, txt2, len_txt1, len_txt2, label, iterator.initializer)
+
+class InferInput(namedtuple('InferInput', 'txt1 txt2 len_txt1 len_txt2 init')):
+  pass
+
+
+def create_data_iterator(txt1, txt2, vocab_table, batch_size):
+  text1_dataset = create_wordindex_with_length_dataset(txt1, vocab_table)
+  text2_dataset = create_wordindex_with_length_dataset(txt2, vocab_table, -1)
+
+  dataset = data.Dataset.zip((text1_dataset, text2_dataset))
+
+  # Separate out lengths of txt1 and txt2
+  dataset = dataset.map(lambda t1, t2: (t1[0], t2[0], t1[1], t2[1]))
+
+  # Create a padded batch
+  dataset = dataset.padded_batch(batch_size, padded_shapes=(
+  tf.TensorShape([None]), tf.TensorShape([None]), tf.TensorShape([]), tf.TensorShape([])))
+
+  iterator = dataset.make_initializable_iterator()
+  txt1, txt2, len_txt1, len_txt2= iterator.get_next()
+
+  return InferInput(txt1, txt2, len_txt1, len_txt2, iterator.initializer)
