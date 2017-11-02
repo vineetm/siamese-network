@@ -32,6 +32,7 @@ def main():
   fw_pos = open('%s.%s'%(args.data_file, args.out_pos), 'w')
   fw_np = open('%s.%s' % (args.data_file, args.out_np), 'w')
 
+  line_num = 0
   for line in open(args.data_file):
     sentences = line.strip().split(args.eou)[:-1]
 
@@ -50,6 +51,10 @@ def main():
 
     #Filter for nouns and verbs
     concepts.extend([pos_tag[0] for pos_tag in pos_tags if pos_tag[1][:2] in VALID_POS])
+
+    line_num += 1
+    if line_num % 10000 == 0:
+      logging.info('line_num: %d'%line_num)
 
   fw_concepts = open('%s.%s' % (args.data_file, args.out_concepts), 'w')
 
