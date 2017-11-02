@@ -59,7 +59,42 @@ We will implement our model in Tensorflow `tf1.3` and also use tensorflow datase
     See `prep_data.sh` for sample parameters
 
 #### Experiments
-1. Opt='sgd', lr=0.01, 0.1, 1.0
-  * V = 100K, Word embedding matrix initialized using truncated_normal
-  * Batch_size: 256
-  * M = initialized using truncated_normal
+##### Experiment 1
+* Parameters
+  * Learning Rates: 0.35563452  0.57011693  0.27271969  0.11039043; (4 random samples between 0.1 and 1.0)
+  * Optimization algorithm: SGD
+  * Batch Size: 256
+  * M: eye
+  * d=128
+  * V=30,000
+  * Embeddings initialized using random_normal
+
+* Results
+  * Valid Loss: lr=0.57, Step 22k, 0.5653
+  * Train Loss: 0.4094, goes down till 0.2325
+  * R@k: R@1:0.4561 R@2: 0.6426 R@5:0.8950
+
+##### Experiment 2
+* Parameters
+  * Same as Experiment 1 but with d=256
+
+* Results
+  * Valid loss: lr=0.57 Step 10K, 0.5664
+  * R@1:0.4722 R@2: 0.6559 R@5:0.9002
+
+##### Experiment 3
+* Parameters
+  * Same as Experiment 1 but with Adam as optimizer
+  * lr = 0.00035563  0.00057012  0.00027272  0.00011039
+
+* Results
+  * Valid Loss: 0.5439 Step 10K
+  * Train Loss: 0.4189
+  * R@1:0.4847 R@2: 0.6708 R@5:0.9066
+
+##### Experiment 4
+Same as Experiment 3 but d=64
+
+* Results
+  * lr = 0.00057 R@1:0.4819 R@2: 0.6653 R@5:0.9079
+  * lr =0.0001 R@1:0.4337 R@2: 0.6206 R@5:0.8801

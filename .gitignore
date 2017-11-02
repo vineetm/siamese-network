@@ -101,3 +101,9 @@ ENV/
 .mypy_cache/
 
 .ipynb_checkpoints/
+.DS_Store
+.idea/
+
+data/
+src/out
+raw-data/

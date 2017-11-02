@@ -93,6 +93,31 @@ def process_valid_data(data_dir, out_dir, valid_suffix, text1, text2, labels):
 Text1: context
 Text2: split into 10 files .p0, .p1, .p2, ... 
 '''
+def process_repeat_valid_data_for_retrieval(data_dir, out_dir, valid_suffix, text1, text2):
+  valid_src_file = os.path.join(data_dir, '%s.%s' % (valid_suffix, CSV))
+  logging.info('Reading valid file: %s'%valid_src_file)
+
+  with open(valid_src_file) as fr:
+    reader = csv.reader(fr)
+    row = next(reader)
+    num_text2 = len(row) - 1
+    logging.info('num_text2: %d'%num_text2)
+
+    fw_txt1 = open(os.path.join(out_dir, 'rp%s.%s' % (valid_suffix, text1)), 'w')
+    fw_txt2 = open(os.path.join(out_dir, 'rp%s.%s' % (valid_suffix, text2)), 'w')
+
+    for row in reader:
+      assert len(row) == num_text2 + 1
+
+      for pnum, part in enumerate(row[1:]):
+        part = part.lower()
+        fw_txt1.write('%s\n' % (' '.join(row[0].lower().split(','))))
+        fw_txt2.write('%s\n'%part)
+
+'''
+Text1: context
+Text2: split into 10 files .p0, .p1, .p2, ... 
+'''
 def process_valid_data_for_retrieval(data_dir, out_dir, valid_suffix, text1, text2):
   valid_src_file = os.path.join(data_dir, '%s.%s' % (valid_suffix, CSV))
   logging.info('Reading valid file: %s'%valid_src_file)
@@ -151,18 +176,19 @@ def main():
   np.random.seed(args.seed)
   logging.info(args)
 
-  logging.info('Creating Train')
-  process_train_data(args.raw_data_dir, args.out_dir, args.train, args.txt1, args.txt2, args.labels)
+  # logging.info('Creating Train')
+  # process_train_data(args.raw_data_dir, args.out_dir, args.train, args.txt1, args.txt2, args.labels)
+  #
+  # logging.info('Creating Valid')
+  # process_valid_data(args.raw_data_dir, args.out_dir, args.valid, args.txt1, args.txt2, args.labels)
+  #
+  # logging.info('Creating Valid for retrieval')
+  # process_valid_data_for_retrieval(args.raw_data_dir, args.out_dir, args.valid, args.txt1, args.txt2)
+  #
+  # logging.info('Creating Vocab from training data')
+  # create_vocab(args.out_dir, args.train, args.txt1, args.txt2, args.vocab)
 
-  logging.info('Creating Valid')
-  process_valid_data(args.raw_data_dir, args.out_dir, args.valid, args.txt1, args.txt2, args.labels)
-
-  logging.info('Creating Valid for retrieval')
-  process_valid_data_for_retrieval(args.raw_data_dir, args.out_dir, args.valid, args.txt1, args.txt2)
-
-  logging.info('Creating Vocab from training data')
-  create_vocab(args.out_dir, args.train, args.txt1, args.txt2, args.vocab)
-
+  process_repeat_valid_data_for_retrieval(args.raw_data_dir, args.out_dir, args.valid, args.txt1, args.txt2)
 
 if __name__ == '__main__':
   main()

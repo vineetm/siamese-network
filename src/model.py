@@ -61,21 +61,23 @@ class SiameseModel:
                                              tf.summary.scalar('grad_norm', self.grad_norm)])
 
 
-  def compute_scores(self, sess, out_file):
+  def compute_scores(self, sess, out_file, freq=100):
     assert self.mode == ModeKeys.INFER
     # Initialize iterator
     sess.run(self.iterator.init)
 
-    covered = 0
+    num_batches = 0
     fw = open(out_file, 'w')
     while True:
       try:
         logits = sess.run(self.logits)
         for logit in logits:
           fw.write('%.4f\n'%logit)
-        covered += len(logits)
-        if covered % 1024 == 0:
-          logging.info('Completed %d'%covered)
+
+        num_batches += 1
+        if num_batches % freq == 0:
+          logging.info('Batches Completed: %d'%num_batches)
+
       except tf.errors.OutOfRangeError:
         fw.close()
         return
@@ -84,6 +86,7 @@ class SiameseModel:
   def train(self, sess):
     assert self.mode == ModeKeys.TRAIN
     return sess.run([self.train_step, self.loss, self.train_summary])
+
 
   def eval(self, sess):
     assert self.mode == ModeKeys.EVAL
