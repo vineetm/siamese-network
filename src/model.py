@@ -19,6 +19,12 @@ class SiameseModel:
     self.txt2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt2, name='txt2v')
 
     rnn_cell = rnn.BasicLSTMCell(self.d)
+
+    #FIXME: Why is this only applied at train?
+    if mode == ModeKeys.TRAIN:
+      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1-hparams.droput))
+      logging.info('Dropout: %f'%hparams.dropout)
+
     with tf.variable_scope('rnn'):
       outputs, state = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors,
                                          sequence_length=self.iterator.len_txt1, dtype=tf.float32)

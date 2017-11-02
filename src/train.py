@@ -43,6 +43,8 @@ def setup_args():
   parser.add_argument('-max_norm', default=5.0, type=float, help='learning rate')
   parser.add_argument('-opt', default='sgd', help='Optimization algo: sgd|adam')
 
+  parser.add_argument('-dropout', default=0.0, type=float, help='Dropout, only applied at training')
+
   parser.add_argument('-seed', default=1543, type=int)
   args = parser.parse_args()
   return args
@@ -80,6 +82,7 @@ def build_hparams(args):
                  lr = args.lr,
                  max_norm = args.max_norm,
                  opt = args.opt,
+                 dropout = args.dropout,
 
                  model_dir = args.model_dir
                  )
