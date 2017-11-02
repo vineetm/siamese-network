@@ -22,7 +22,7 @@ class SiameseModel:
 
     #FIXME: Why is this only applied at train?
     if mode == ModeKeys.TRAIN:
-      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1-hparams.droput))
+      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1-hparams.dropout))
       logging.info('Dropout: %f'%hparams.dropout)
 
     with tf.variable_scope('rnn'):
