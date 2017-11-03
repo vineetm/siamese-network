@@ -59,42 +59,32 @@ We will implement our model in Tensorflow `tf1.3` and also use tensorflow datase
     See `prep_data.sh` for sample parameters
 
 #### Experiments
-##### Experiment 1
 * Parameters
-  * Learning Rates: 0.35563452  0.57011693  0.27271969  0.11039043; (4 random samples between 0.1 and 1.0)
-  * Optimization algorithm: SGD
-  * Batch Size: 256
+  * Opt: 'Adam'
+  * Batch_Size: 256
   * M: eye
-  * d=128
-  * V=30,000
-  * Embeddings initialized using random_normal
+  * Word embeddings: init truncated_normal
+  * d: 128
 
-* Results
-  * Valid Loss: lr=0.57, Step 22k, 0.5653
-  * Train Loss: 0.4094, goes down till 0.2325
-  * R@k: R@1:0.4561 R@2: 0.6426 R@5:0.8950
+  * lr = 0.0005, 0.0065, 0.0075, 0.001
+  * dr = 0.0, 0.1, 0.2, 0.4, 0.6, 0.8
 
-##### Experiment 2
-* Parameters
-  * Same as Experiment 1 but with d=256
-
-* Results
-  * Valid loss: lr=0.57 Step 10K, 0.5664
-  * R@1:0.4722 R@2: 0.6559 R@5:0.9002
-
-##### Experiment 3
-* Parameters
-  * Same as Experiment 1 but with Adam as optimizer
-  * lr = 0.00035563  0.00057012  0.00027272  0.00011039
-
-* Results
-  * Valid Loss: 0.5439 Step 10K
-  * Train Loss: 0.4189
-  * R@1:0.4847 R@2: 0.6708 R@5:0.9066
-
-##### Experiment 4
-Same as Experiment 3 but d=64
-
-* Results
-  * lr = 0.00057 R@1:0.4819 R@2: 0.6653 R@5:0.9079
-  * lr =0.0001 R@1:0.4337 R@2: 0.6206 R@5:0.8801
+  * Results
+    * dr=0.0
+      * lr=0.001, Valid_Loss: 0.5455, Step: 6K, Train_Loss: 0.4903
+      * R@1:0.4784 R@2: 0.6638 R@5:0.9035
+    * dr=0.1
+      * lr=0.001, Valid_Loss: 0.5381, Step: 10K, Train_Loss: 0.4368
+      * R@1:0.5131 R@2: 0.6949 R@5:0.9206
+    * dr=0.2
+      * lr=0.0005, Valid_Loss: 0.5268, Step: 27K, Train_Loss: 0.4052
+      * R@1:0.5486 R@2: 0.7276 R@5:0.9362
+    * dr=0.2,
+      * Valid_Loss: 0.5332 Train_Loss:0.41 Step: 17K
+      * lr=0.001, R@1:0.5445 R@2: 0.7233 R@5:0.9325
+    * dr=0.4
+      * Valid_Loss: 0.5156, Train: 0.4264, Step: 44K, lr=0.00065
+      * R@1:0.5672 R@2: 0.7448 R@5:0.9441
+    * dr=0.6
+      * lr=0.005, Valid_Loss:0.5189, Step:125K
+      * **R@1:0.5847 R@2: 0.7605 R@5:0.9482**

@@ -20,7 +20,8 @@ class SiameseModel:
 
     rnn_cell = rnn.BasicLSTMCell(self.d)
 
-    #FIXME: Why is this only applied at train?
+    # Why is this only applied at train?
+    # This is because dropout is trained by scaling up input to original signal strength.
     if mode == ModeKeys.TRAIN:
       rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1-hparams.dropout))
       logging.info('Dropout: %f'%hparams.dropout)
