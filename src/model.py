@@ -19,7 +19,7 @@ class SiameseModel:
     self.num_units = hparams.num_units
     self.iterator = iterator
 
-    self.W = tf.Variable(tf.truncated_normal([self.V, self.d]), name='embeddings')
+    self.W = tf.Variable(tf.random_uniform(shape=[self.V, self.d], minval=-0.25, maxval=0.25), name='embeddings')
     self.txt1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt1, name='txt1v')
     self.txt2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt2, name='txt2v')
 
