@@ -1,6 +1,9 @@
 import csv, argparse, os
 import logging
 from collections import Counter
+import numpy as np
+
+np.random.seed(1543)
 
 
 # Source Ubuntu corpus, cleaned up as described here
@@ -20,6 +23,7 @@ def setup_args():
 
   parser.add_argument('-data_dir', default='data')
   parser.add_argument('-train', default='train')
+  parser.add_argument('-all_valid', default='all.valid')
   parser.add_argument('-valid', default='valid')
   parser.add_argument('-test', default='test')
   parser.add_argument('-vocab', default='all.vocab.txt')
@@ -37,27 +41,46 @@ def clean_txt(txt):
   txt = txt.replace('",', '" ,')
   return txt
 
+def write_datum(row, fw_txt1, fw_txt2, fw_labels):
+  fw_txt1.write('%s\n' % clean_txt(row[0]))
+  fw_txt2.write('%s\n' % clean_txt(row[1]))
+  fw_labels.write('%s\n' % clean_txt(row[2]))
 
-def separate_data(csv_file, data_dir, prefix, txt1_suffix, txt2_suffix, labels_suffix):
+def should_write(row_num, sub_sample=False, random_num=None):
+  if sub_sample is False:
+    return True
+
+  index = row_num % 10
+  if index == 0:
+    return True
+
+  if random_num == index:
+    return True
+
+'''
+In order to keep valid distn same as train, we need to sub-sample valid data
+'''
+def separate_data(csv_file, data_dir, prefix, txt1_suffix, txt2_suffix, labels_suffix, sub_sample=False):
   fw_txt1 = open(os.path.join(data_dir, '%s.%s' % (prefix, txt1_suffix)), 'w')
   fw_txt2 = open(os.path.join(data_dir, '%s.%s' % (prefix, txt2_suffix)), 'w')
   fw_labels = open(os.path.join(data_dir, '%s.%s' % (prefix, labels_suffix)), 'w')
 
-  num_rows = 0
+  row_num = 0
+  rn = None
   with open(csv_file) as fr:
     reader = csv.reader(fr)
     for row in reader:
       assert len(row) == 3
-      num_rows += 1
+      if sub_sample and row_num % 10 == 0:
+          rn = np.random.randint(1, 10)
 
-      fw_txt1.write('%s\n'%clean_txt(row[0]))
-      fw_txt2.write('%s\n' %clean_txt(row[1]))
-      fw_labels.write('%s\n'%clean_txt(row[2]))
+      if should_write(row_num, sub_sample, random_num=rn):
+        write_datum(row, fw_txt1, fw_txt2, fw_labels)
 
   fw_txt1.close()
   fw_txt2.close()
   fw_labels.close()
-  logging.info('Csv: %s Rows: %d'%(csv_file, num_rows))
+  logging.info('Csv: %s Rows: %d'%(csv_file, row_num))
 
 
 def build_vocab(data_dir, vocab_suffix, prefix, txt1_suffix, txt2_suffix):
@@ -107,8 +130,9 @@ def main():
 
   #Separate out txt1, txt2 and labels for validation data
   valid_csv = os.path.join(args.csv_dir, args.valid_csv)
-  separate_data(valid_csv, args.data_dir, args.valid, args.txt1, args.txt2, args.labels)
+  separate_data(valid_csv, args.data_dir, args.valid, args.txt1, args.txt2, args.labels, sub_sample=True)
 
+  separate_data(valid_csv, args.data_dir, args.all_valid, args.txt1, args.txt2, args.labels)
 
 if __name__ == '__main__':
   logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
