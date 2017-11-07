@@ -34,7 +34,8 @@ def setup_args():
   parser.add_argument('-valid_batch_size', default=128, type=int, help='Valid batch size')
 
   parser.add_argument('-vocab_size', default=30000, type=int, help='vocab size')
-  parser.add_argument('-d', default=128, type=int, help='embedding size')
+  parser.add_argument('-d', default=128, type=int, help='word embedding size')
+  parser.add_argument('-num_units', default=128, type=int, help='RNN num units')
 
   parser.add_argument('-steps_per_eval', default=100, type=int, help='Steps per eval')
   parser.add_argument('-steps_per_stats', default=50, type=int, help='Steps per stats')
@@ -76,6 +77,7 @@ def build_hparams(args):
                  valid_batch_size=args.valid_batch_size,
 
                  d = args.d,
+                 num_units = args.num_units,
                  steps_per_eval = args.steps_per_eval,
                  steps_per_stats = args.steps_per_stats,
 

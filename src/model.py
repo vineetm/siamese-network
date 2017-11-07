@@ -7,38 +7,42 @@ import time
 logging = tf.logging
 logging.set_verbosity(logging.INFO)
 
+
 class SiameseModel:
   def __init__(self, hparams, iterator, mode):
+    #Mode specifies Train, Eval or Infer
     self.mode = mode
-    self.v = hparams.vocab_size
+
+    self.V = hparams.vocab_size
+
     self.d = hparams.d
+    self.num_units = hparams.num_units
     self.iterator = iterator
 
-    self.W = tf.Variable(tf.truncated_normal([self.v, self.d]), name='embeddings')
+    self.W = tf.Variable(tf.truncated_normal([self.V, self.d]), name='embeddings')
     self.txt1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt1, name='txt1v')
     self.txt2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt2, name='txt2v')
 
-    rnn_cell = rnn.BasicLSTMCell(self.d)
+    rnn_cell = rnn.BasicLSTMCell(self.num_units)
 
-    # Why is this only applied at train?
-    # This is because dropout is trained by scaling up input to original signal strength.
+    # Dropout is only applied at train. Not required at test as the inputs are scaled accordingly
     if mode == ModeKeys.TRAIN:
-      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1-hparams.dropout))
+      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1 - hparams.dropout))
       logging.info('Dropout: %f'%hparams.dropout)
 
     with tf.variable_scope('rnn'):
-      outputs, state = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors,
-                                         sequence_length=self.iterator.len_txt1, dtype=tf.float32)
+      outputs_txt1, state_txt1 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors, sequence_length=self.iterator.len_txt1,
+                                         dtype=tf.float32)
 
-    #This is batch_size x d
-    self.c = state.h
+    #This is batch_size x num_units
+    self.c = state_txt1.h
 
     with tf.variable_scope('rnn', reuse=True):
-      outputs, state = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
+      outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
                                          sequence_length=self.iterator.len_txt2, dtype=tf.float32)
 
-    self.r = state.h
-    self.M = tf.Variable(tf.eye(self.d), name='M')
+    self.r = state_txt2.h
+    self.M = tf.Variable(tf.eye(self.num_units), name='M')
 
     self.logits = tf.reduce_sum(tf.multiply(self.c, tf.matmul(self.r, self.M)), axis=1)
     self.saver = tf.train.Saver(tf.global_variables())
