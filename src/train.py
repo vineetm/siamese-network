@@ -79,6 +79,7 @@ def build_hparams(args):
 
                  d = args.d,
                  num_units = args.num_units,
+                 steps_per_train_summary = args.steps_per_train_summary,
                  steps_per_eval = args.steps_per_eval,
                  steps_per_stats = args.steps_per_stats,
 
