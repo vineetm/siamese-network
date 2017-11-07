@@ -77,6 +77,8 @@ def separate_data(csv_file, data_dir, prefix, txt1_suffix, txt2_suffix, labels_s
       if should_write(row_num, sub_sample, random_num=rn):
         write_datum(row, fw_txt1, fw_txt2, fw_labels)
 
+      row_num += 1
+
   fw_txt1.close()
   fw_txt2.close()
   fw_labels.close()
