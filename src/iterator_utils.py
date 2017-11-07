@@ -8,7 +8,7 @@ import os
 from collections import namedtuple
 
 import tensorflow as tf
-from tensorflow.contrib import data
+from tensorflow import data
 
 #Setup TF logging
 logging = tf.logging

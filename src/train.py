@@ -104,6 +104,11 @@ def main():
 
   #Save hparams
   logging.info(hparams)
+
+  #Create Model dir if required
+  if not tf.gfile.Exists(hparams.model_dir):
+    logging.info('Creating Model dir: %s'%hparams.model_dir)
+    tf.gfile.MkDir(hparams.model_dir)
   save_hparams(hparams)
 
   #Create Training graph, and session
