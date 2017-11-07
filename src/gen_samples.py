@@ -11,7 +11,7 @@ def setup_args():
   parser.add_argument('start', type=int)
   parser.add_argument('end', type=int)
 
-  parser.add_argument('num_samples', type=int)
+  parser.add_argument('-num_samples', type=int, default=8)
   args = parser.parse_args()
 
   return args
@@ -31,6 +31,8 @@ def main():
   r = args.start + r
 
   r = 10 ** r
+
+  r = [float('%.7f'%r1) for r1 in r]
 
   logging.info(r)
 
