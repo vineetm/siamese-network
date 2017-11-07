@@ -37,6 +37,7 @@ def setup_args():
   parser.add_argument('-d', default=128, type=int, help='word embedding size')
   parser.add_argument('-num_units', default=128, type=int, help='RNN num units')
 
+  parser.add_argument('-steps_per_train_summary', default=10, type=int, help='Steps per train summary')
   parser.add_argument('-steps_per_eval', default=100, type=int, help='Steps per eval')
   parser.add_argument('-steps_per_stats', default=50, type=int, help='Steps per stats')
 
@@ -148,6 +149,7 @@ def main():
 
   #Training loop
   summary_writer = tf.summary.FileWriter(os.path.join(hparams.model_dir, 'train_log'))
+  last_summary_step = 0
   last_eval_step = 0
   last_stats_step = 0
   epoch_num = 0
@@ -163,12 +165,16 @@ def main():
   for step in itertools.count():
     try:
       _, loss, train_summary = train_model.train(train_sess)
-      summary_writer.add_summary(train_summary, step)
+
 
       #Steps per stats
       if step - last_stats_step >= hparams.steps_per_stats:
         logging.info('Step %d: Train_Loss: %.4f'%(step, loss))
         last_stats_step = step
+
+      if step - last_summary_step >= hparams.steps_per_train_summary:
+        summary_writer.add_summary(train_summary, step)
+        last_summary_step = step
 
       # Eval model and print stats
       if step - last_eval_step >= hparams.steps_per_eval:
