@@ -88,3 +88,7 @@ We will implement our model in Tensorflow `tf1.3` and also use tensorflow datase
     * dr=0.6
       * lr=0.005, Valid_Loss:0.5189, Step:125K
       * **R@1:0.5847 R@2: 0.7605 R@5:0.9482**
+
+### Code Details
+
+* `prep_data.py`: Separate out training and validation data. Build vocabulary using the train data

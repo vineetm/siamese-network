@@ -25,6 +25,7 @@ def setup_args():
   parser.add_argument('-train', default='train')
   parser.add_argument('-all_valid', default='all.valid')
   parser.add_argument('-valid', default='valid')
+  parser.add_argument('-pvalid', default='pvalid')
   parser.add_argument('-test', default='test')
   parser.add_argument('-vocab', default='all.vocab.txt')
 
@@ -60,7 +61,7 @@ def should_write(row_num, sub_sample=False, random_num=None):
 '''
 In order to keep valid distn same as train, we need to sub-sample valid data
 '''
-def separate_data(csv_file, data_dir, prefix, txt1_suffix, txt2_suffix, labels_suffix, sub_sample=False):
+def separate_data(csv_file, data_dir, prefix, txt1_suffix, txt2_suffix, labels_suffix, sub_sample=False, only_pos=False):
   fw_txt1 = open(os.path.join(data_dir, '%s.%s' % (prefix, txt1_suffix)), 'w')
   fw_txt2 = open(os.path.join(data_dir, '%s.%s' % (prefix, txt2_suffix)), 'w')
   fw_labels = open(os.path.join(data_dir, '%s.%s' % (prefix, labels_suffix)), 'w')
@@ -71,11 +72,17 @@ def separate_data(csv_file, data_dir, prefix, txt1_suffix, txt2_suffix, labels_s
     reader = csv.reader(fr)
     for row in reader:
       assert len(row) == 3
-      if sub_sample and row_num % 10 == 0:
-          rn = np.random.randint(1, 10)
+      if only_pos is True:
+        if int(row[2]) == 1:
+          write_datum(row, fw_txt1, fw_txt2, fw_labels)
+        else:
+          continue
+      else:
+        if sub_sample and row_num % 10 == 0:
+            rn = np.random.randint(1, 10)
 
-      if should_write(row_num, sub_sample, random_num=rn):
-        write_datum(row, fw_txt1, fw_txt2, fw_labels)
+        if should_write(row_num, sub_sample, random_num=rn):
+          write_datum(row, fw_txt1, fw_txt2, fw_labels)
 
       row_num += 1
 
@@ -135,6 +142,13 @@ def main():
   separate_data(valid_csv, args.data_dir, args.valid, args.txt1, args.txt2, args.labels, sub_sample=True)
 
   separate_data(valid_csv, args.data_dir, args.all_valid, args.txt1, args.txt2, args.labels)
+
+  #Only write positive labels data
+  separate_data(valid_csv, args.data_dir, args.pvalid, args.txt1, args.txt2, args.labels, only_pos=True)
+
+  test_csv = os.path.join(args.csv_dir, args.test_csv)
+  separate_data(test_csv, args.data_dir, args.test, args.txt1, args.txt2, args.labels)
+
 
 if __name__ == '__main__':
   logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
