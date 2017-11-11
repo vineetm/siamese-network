@@ -26,7 +26,7 @@ def setup_args():
   parser.add_argument('-all_valid', default='all.valid')
   parser.add_argument('-valid', default='valid')
   parser.add_argument('-pvalid', default='pvalid')
-  parser.add_argument('-test', default='test')
+  parser.add_argument('-all_test', default='all.test')
   parser.add_argument('-vocab', default='all.vocab.txt')
 
   parser.add_argument('-txt1', default='txt1')
@@ -147,7 +147,7 @@ def main():
   separate_data(valid_csv, args.data_dir, args.pvalid, args.txt1, args.txt2, args.labels, only_pos=True)
 
   test_csv = os.path.join(args.csv_dir, args.test_csv)
-  separate_data(test_csv, args.data_dir, args.test, args.txt1, args.txt2, args.labels)
+  separate_data(test_csv, args.data_dir, args.all_test, args.txt1, args.txt2, args.labels)
 
 
 if __name__ == '__main__':

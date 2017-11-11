@@ -27,3 +27,26 @@
   wget http://rover.ms.mff.cuni.cz/~pasky/ubuntu-dialog/v2-testset.csv.gz
   gunzip v2*.gz
   ```
+
+* Notes:
+  * It seems `",` is not tokenized properly. Replace `",` -> `" ,`
+
+* We separate out txt1, txt2 and labels on this csv. Further, to train dual encoder model, we make ratio of pos-negative labels similar to train...
+
+  ```
+  python prep_data.py $CSV_DIR -data_dir data
+  ```
+
+This creates following data:
+  * `train` (`txt1, txt2, labels`): Train data for Dual Encoder. #of positive and negative examples are similar (not exactly same though...)
+
+  * `all.valid`: Validation data with 1 GT and 9 distractors. Used for R@k metrics..
+
+  * `valid`: Validation data with equal pos/neg data points. Used as validation set for dual encoder Networks
+
+  * `pvalid`: Positive validation examples
+
+  * `all.test`: Test data 1 GT, 9 distractors
+
+  * `all.vocab.txt`: Complete vocabulary built using training data (`train.csv`) + `UNK`
+    * Vocab size: 783, 857
