@@ -11,13 +11,13 @@
   ```
   ./generate.sh
   cd ../../
-  ```
 
   git clone https://github.com/brmson/tweetmotif
-touch tweetmotif/__init__.py
-./preprocess.py ubuntu-ranking-dataset-creator/src/train.csv v2-trainset.csv train
-./preprocess.py ubuntu-ranking-dataset-creator/src/valid.csv v2-valset.csv test
-./preprocess.py ubuntu-ranking-dataset-creator/src/test.csv v2-testset.csv test
+  touch tweetmotif/__init__.py
+  ./preprocess.py ubuntu-ranking-dataset-creator/src/train.csv v2-trainset.csv train
+  ./preprocess.py ubuntu-ranking-dataset-creator/src/valid.csv v2-valset.csv test
+  ./preprocess.py ubuntu-ranking-dataset-creator/src/test.csv v2-testset.csv test
+  ```
 
 * Alternatively you can directly download the tokenized text
 `v2-trainset.csv`, ...
