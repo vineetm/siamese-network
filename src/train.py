@@ -37,13 +37,13 @@ def setup_args():
   parser.add_argument('-d', default=128, type=int, help='word embedding size')
   parser.add_argument('-num_units', default=128, type=int, help='RNN num units')
 
-  parser.add_argument('-steps_per_train_summary', default=10, type=int, help='Steps per train summary')
-  parser.add_argument('-steps_per_eval', default=100, type=int, help='Steps per eval')
-  parser.add_argument('-steps_per_stats', default=50, type=int, help='Steps per stats')
+  parser.add_argument('-steps_per_train_summary', default=20, type=int, help='Steps per train summary')
+  parser.add_argument('-steps_per_eval', default=1000, type=int, help='Steps per eval')
+  parser.add_argument('-steps_per_stats', default=100, type=int, help='Steps per stats')
 
-  parser.add_argument('-lr', default=1.0, type=float, help='learning rate')
+  parser.add_argument('-lr', default=0.001, type=float, help='learning rate')
   parser.add_argument('-max_norm', default=5.0, type=float, help='learning rate')
-  parser.add_argument('-opt', default='sgd', help='Optimization algo: sgd|adam')
+  parser.add_argument('-opt', default='adam', help='Optimization algo: sgd|adam')
 
   parser.add_argument('-dropout', default=0.0, type=float, help='Dropout, only applied at training')
 

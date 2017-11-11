@@ -19,11 +19,14 @@ class SiameseModel:
     self.num_units = hparams.num_units
     self.iterator = iterator
 
-    self.W = tf.Variable(tf.random_uniform(shape=[self.V, self.d], minval=-0.25, maxval=0.25), name='embeddings')
+    self.W = tf.get_variable('embeddings', shape=[self.V, self.d])
+    #self.W = tf.Variable(tf.random_uniform(shape=[self.V, self.d], minval=-0.25, maxval=0.25), name='embeddings')
+
     self.txt1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt1, name='txt1v')
     self.txt2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt2, name='txt2v')
 
-    rnn_cell = rnn.BasicLSTMCell(self.num_units)
+    #Make forget gate bias as 2.0, as indicated in paper...
+    rnn_cell = rnn.BasicLSTMCell(self.num_units, forget_bias=2.0)
 
     # Dropout is only applied at train. Not required at test as the inputs are scaled accordingly
     if mode == ModeKeys.TRAIN:
