@@ -8,6 +8,8 @@ logging.set_verbosity(logging.INFO)
 def setup_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('scores_file')
+  parser.add_argument('-candidates', default=10, type=int,
+                      help='Num candidates per example')
   args = parser.parse_args()
   return args
 
@@ -28,7 +30,7 @@ def main():
   for line in fr:
     scores.append(float(line.strip()))
 
-    if len(scores) == 10:
+    if len(scores) == args.candidates:
       total += 1
       ranks = np.argsort(scores)[::-1]
 
