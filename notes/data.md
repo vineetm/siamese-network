@@ -48,5 +48,5 @@ This creates following data:
 
   * `all.test`: Test data 1 GT, 9 distractors
 
-  * `all.vocab.txt`: Complete vocabulary built using training data (`train.csv`) + `UNK`
+  * `all.vocab.txt`: Complete vocabulary built using training data (`v2-trainset.csv`) + `UNK`
     * Vocab size: 783, 857
