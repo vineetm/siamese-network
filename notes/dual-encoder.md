@@ -18,3 +18,10 @@
 * Results
   * Eval Loss: 0.4090, Train Loss: 0.3501, Step: 277K, 24h
   * dr=0.6: R@1: 0.6054 R@2: 0.7792 R@5:0.9524
+
+#### Experiment 2
+Same as Exp1, but vocab=5k
+
+* Results:
+  * Eval Loss: 0.4046 Step: 280K, Train Loss: 0.3824
+  * dr=0.6 R@1:0.6026 R@2: 0.7721 R@5:0.9534

@@ -65,7 +65,7 @@ def write_datum(txt1, gt_txt2, candidates, indexes, fws_txt1, fws_txt2, fws_labe
 
     for index in indexes[:num_distractors]:
       fws_txt1[num_distractors].write('%s' % txt1)
-      fws_txt2[num_distractors].write('%s' %candidates[index])
+      fws_txt2[num_distractors].write('%s\n' %candidates[index])
       fws_labels[num_distractors].write('%d\n' % INCORRECT)
 
 
@@ -112,9 +112,8 @@ def main():
     write_datum(txt1, txt2, list_candidates, indexes, fws_txt1, fws_txt2, fws_labels)
 
     datum_num += 1
-    if datum_num == 10:
-      return
-      # logging.info('Processed datum: %d'%datum_num)
+    if datum_num % 10 == 0:
+      logging.info('Processed datum: %d'%datum_num)
 
 
 if __name__ == '__main__':
