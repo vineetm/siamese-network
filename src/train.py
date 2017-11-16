@@ -47,6 +47,9 @@ def setup_args():
 
   parser.add_argument('-dropout', default=0.0, type=float, help='Dropout, only applied at training')
 
+  parser.add_argument('-diff_rnn', default=False, action='store_true',
+                      help='Use different RNN for txt1 and txt2')
+
   parser.add_argument('-seed', default=1543, type=int)
   args = parser.parse_args()
   return args
@@ -88,7 +91,9 @@ def build_hparams(args):
                  opt = args.opt,
                  dropout = args.dropout,
 
-                 model_dir = args.model_dir
+                 model_dir = args.model_dir,
+
+                 diff_rnn = args.diff_rnn
                  )
 
 

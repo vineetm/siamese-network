@@ -40,9 +40,16 @@ class SiameseModel:
     #This is batch_size x num_units
     self.c = state_txt1.h
 
-    with tf.variable_scope('rnn', reuse=True):
-      outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
-                                         sequence_length=self.iterator.len_txt2, dtype=tf.float32)
+    if hparams.diff_rnn:
+      logging.info('Using different RNN for txt2')
+      with tf.variable_scope('rnn2'):
+        outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
+                                           sequence_length=self.iterator.len_txt2, dtype=tf.float32)
+    else:
+      logging.info('Re-Using RNN for txt2')
+      with tf.variable_scope('rnn', reuse=True):
+        outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
+                                           sequence_length=self.iterator.len_txt2, dtype=tf.float32)
 
     self.r = state_txt2.h
     self.M = tf.Variable(tf.eye(self.num_units), name='M')
