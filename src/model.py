@@ -42,8 +42,10 @@ class SiameseModel:
 
     if 'diff_rnn' in hparams and hparams.diff_rnn:
       logging.info('Using different RNN for txt2')
+      rnn_cell2 = rnn.BasicLSTMCell(self.num_units, forget_bias=2.0)
+      rnn_cell2 = rnn.DropoutWrapper(rnn_cell2, input_keep_prob=(1 - hparams.dropout))
       with tf.variable_scope('rnn2'):
-        outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
+        outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell2, inputs=self.txt2_vectors,
                                           sequence_length=self.iterator.len_txt2, dtype=tf.float32)
     else:
       logging.info('Re-Using RNN for txt2')
