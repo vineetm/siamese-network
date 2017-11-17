@@ -13,10 +13,9 @@ logging.set_verbosity(logging.INFO)
 def setup_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('-model_dir')
-  parser.add_argument('-data_dir')
   parser.add_argument('-txt1', default='all.valid.txt1')
   parser.add_argument('-txt2', default='all.valid.txt2')
-  parser.add_argument('-out_suffix', default='valid.scores')
+  parser.add_argument('-out', default='valid.scores')
   parser.add_argument('-batch_size', default=256, type=int)
   args = parser.parse_args()
   return args
@@ -46,13 +45,11 @@ def main():
   logging.info(hparams)
 
   vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
-  txt1_path = os.path.join(args.data_dir, args.txt1)
-  txt2_path = os.path.join(args.data_dir, args.txt2)
 
-  iterator = create_data_iterator(txt1_path, txt2_path, vocab_table, args.batch_size)
+  iterator = create_data_iterator(args.txt1, args.txt2, vocab_table, args.batch_size)
   infer_model = SiameseModel(hparams, iterator, ModeKeys.INFER)
 
-  out_file = os.path.join(args.model_dir, args.out_suffix)
+  out_file = os.path.join(args.model_dir, args.out)
   with tf.Session() as sess:
     sess.run(tf.tables_initializer())
     latest_ckpt = tf.train.latest_checkpoint(os.path.join(args.model_dir, 'best_eval/'))
