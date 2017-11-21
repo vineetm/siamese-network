@@ -51,7 +51,7 @@ def main():
       if last_datum_num >= 0:
         process_candidates(candidates, rank_gt, last_datum_num)
         if rank_gt[last_datum_num] == args.k:
-          logging.info('Datum: %d GT absent C: %d'%(datum_num, len(candidates)))
+          logging.info('Datum: %d GT absent C: %d'%(last_datum_num, len(candidates)))
         else:
           logging.info('Datum: %d Rank_0: %d/%d'%(last_datum_num, rank_gt[last_datum_num], len(candidates)-1))
       last_datum_num = datum_num
