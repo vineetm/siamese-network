@@ -26,7 +26,10 @@ class SiameseModel:
     self.txt2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt2, name='txt2v')
 
     #Make forget gate bias as 2.0, as indicated in paper...
-    rnn_cell = rnn.BasicLSTMCell(self.num_units, forget_bias=2.0)
+    if 'forget_bias' in hparams:
+      rnn_cell = rnn.BasicLSTMCell(self.num_units, forget_bias=hparams.forget_bias)
+    else:
+      rnn_cell = rnn.BasicLSTMCell(self.num_units, forget_bias=2.0)
 
     # Dropout is only applied at train. Not required at test as the inputs are scaled accordingly
     if mode == ModeKeys.TRAIN:

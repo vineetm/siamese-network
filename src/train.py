@@ -51,6 +51,9 @@ def setup_args():
                       help='Use different RNN for txt1 and txt2')
 
   parser.add_argument('-seed', default=1543, type=int)
+  parser.add_argument('-forget_bias', default=1.0, type=float)
+
+  parser.add_argument('-shuffle', help='Randomly shuffle dataset', action='store_true', default=False)
   args = parser.parse_args()
   return args
 
@@ -93,7 +96,11 @@ def build_hparams(args):
 
                  model_dir = args.model_dir,
 
-                 diff_rnn = args.diff_rnn
+                 diff_rnn = args.diff_rnn,
+
+                 shuffle = args.shuffle,
+                 seed = args.seed,
+                 forget_bias = args.forget_bias
                  )
 
 
@@ -126,7 +133,7 @@ def main():
 
     vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
     train_iterator = create_labeled_data_iterator(hparams.train_txt1, hparams.train_txt2, hparams.train_labels,
-                                                  vocab_table, hparams.train_batch_size)
+                                                  vocab_table, hparams.train_batch_size, hparams.shuffle, hparams.seed)
     train_model = SiameseModel(hparams, train_iterator, ModeKeys.TRAIN)
 
     #Create Training session and init its variables, tables and iterator.
