@@ -25,7 +25,11 @@ class SiameseModel:
     self.txt1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt1, name='txt1v')
     self.txt2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt2, name='txt2v')
 
-    #Make forget gate bias as 2.0, as indicated in paper...
+    if hparams.use_context:
+      logging.info('Using Separate ctx vector')
+      self.context_vectors = tf.nn.embedding_lookup(self.W, self.iterator.context, name='ctxv')
+
+    #Make default forget gate bias as 2.0, as indicated in paper...
     if 'forget_bias' in hparams:
       rnn_cell = rnn.BasicLSTMCell(self.num_units, forget_bias=hparams.forget_bias)
     else:
@@ -43,23 +47,30 @@ class SiameseModel:
     #This is batch_size x num_units
     self.c = state_txt1.h
 
-    if 'diff_rnn' in hparams and hparams.diff_rnn:
-      logging.info('Using different RNN for txt2')
-      rnn_cell2 = rnn.BasicLSTMCell(self.num_units, forget_bias=2.0)
-      rnn_cell2 = rnn.DropoutWrapper(rnn_cell2, input_keep_prob=(1 - hparams.dropout))
-      with tf.variable_scope('rnn2'):
-        outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell2, inputs=self.txt2_vectors,
-                                          sequence_length=self.iterator.len_txt2, dtype=tf.float32)
-    else:
-      logging.info('Re-Using RNN for txt2')
-      with tf.variable_scope('rnn', reuse=True):
-        outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
+    with tf.variable_scope('rnn', reuse=True):
+      outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
                                            sequence_length=self.iterator.len_txt2, dtype=tf.float32)
 
     self.r = state_txt2.h
     self.M = tf.Variable(tf.eye(self.num_units), name='M')
 
     self.logits = tf.reduce_sum(tf.multiply(self.c, tf.matmul(self.r, self.M)), axis=1)
+
+    if hparams.use_context:
+      with tf.variable_scope('rnn', reuse=True):
+        outputs_txt3, state_txt3 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.context_vectors,
+                                                     sequence_length=self.iterator.len_ctx, dtype=tf.float32)
+      self.ctx = state_txt3.h
+
+      if hparams.diff_context_weights:
+        self.Mctx = tf.Variable(tf.eye(self.num_units), name='Mctx')
+        self.new_logits = tf.reduce_sum(tf.multiply(self.ctx, tf.matmul(self.r, self.Mctx)), axis=1)
+      else:
+        self.new_logits = tf.reduce_sum(tf.multiply(self.ctx, tf.matmul(self.r, self.M)), axis=1)
+
+      #Update signal with context
+      self.logits = self.logits + self.new_logits
+
     self.saver = tf.train.Saver(tf.global_variables())
 
     if self.mode == ModeKeys.TRAIN or self.mode == ModeKeys.EVAL:

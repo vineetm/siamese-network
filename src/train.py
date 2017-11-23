@@ -10,7 +10,7 @@ from tensorflow.contrib.learn import ModeKeys
 logging = tf.logging
 logging.set_verbosity(logging.INFO)
 
-from iterator_utils import create_labeled_data_iterator
+from iterator_utils import create_labeled_data_iterator, create_labeled_data_iterator_with_context
 from model import SiameseModel
 
 import itertools
@@ -22,7 +22,8 @@ def setup_args():
   parser.add_argument('model_dir', help='model directory')
 
   parser.add_argument('-txt1', help='txt1 suffix', default='txt1')
-  parser.add_argument('-txt2', help='txt1 suffix', default='txt2')
+  parser.add_argument('-txt2', help='txt2 suffix', default='txt2')
+  parser.add_argument('-context', help= 'context', default='context')
   parser.add_argument('-labels', help='txt1 suffix', default='labels')
 
   parser.add_argument('-train', help='train prefix', default='train')
@@ -52,6 +53,8 @@ def setup_args():
 
   parser.add_argument('-seed', default=1543, type=int)
   parser.add_argument('-forget_bias', default=1.0, type=float)
+  parser.add_argument('-use_context', default=False, action='store_true')
+  parser.add_argument('-diff_context_weights', default=False, action='store_true')
 
   parser.add_argument('-shuffle', help='Randomly shuffle dataset', action='store_true', default=False)
   args = parser.parse_args()
@@ -63,19 +66,31 @@ def build_hparams(args):
   train_txt2 = os.path.join(args.data_dir, '%s.%s'%(args.train, args.txt2))
   train_labels = os.path.join(args.data_dir, '%s.%s' % (args.train, args.labels))
 
+  if args.use_context:
+    train_context = os.path.join(args.data_dir, '%s.%s' % (args.train, args.context))
+  else:
+    train_context = None
+
   valid_txt1 = os.path.join(args.data_dir, '%s.%s' % (args.valid, args.txt1))
   valid_txt2 = os.path.join(args.data_dir, '%s.%s' % (args.valid, args.txt2))
   valid_labels = os.path.join(args.data_dir, '%s.%s' % (args.valid, args.labels))
+
+  if args.use_context:
+    valid_context = os.path.join(args.data_dir, '%s.%s' % (args.valid, args.context))
+  else:
+    valid_context = None
 
   vocab_path = os.path.join(args.data_dir, '%s' % (args.vocab_suffix))
 
   return HParams(train_txt1 = train_txt1,
                  train_txt2 = train_txt2,
                  train_labels = train_labels,
+                 train_context = train_context,
 
                  valid_txt1 = valid_txt1,
                  valid_txt2 = valid_txt2,
                  valid_labels = valid_labels,
+                 valid_context = valid_context,
 
                  vocab_path = vocab_path,
                  vocab_size = args.vocab_size,
@@ -100,7 +115,9 @@ def build_hparams(args):
 
                  shuffle = args.shuffle,
                  seed = args.seed,
-                 forget_bias = args.forget_bias
+                 forget_bias = args.forget_bias,
+                 use_context = args.use_context,
+                 diff_context_weights = args.diff_context_weights
                  )
 
 
@@ -132,7 +149,12 @@ def main():
     tf.set_random_seed(args.seed)
 
     vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
-    train_iterator = create_labeled_data_iterator(hparams.train_txt1, hparams.train_txt2, hparams.train_labels,
+
+    if hparams.use_context:
+      train_iterator = create_labeled_data_iterator_with_context(hparams.train_context, hparams.train_txt1, hparams.train_txt2, hparams.train_labels,
+                                                  vocab_table, hparams.train_batch_size, hparams.shuffle, hparams.seed)
+    else:
+      train_iterator = create_labeled_data_iterator(hparams.train_txt1, hparams.train_txt2, hparams.train_labels,
                                                   vocab_table, hparams.train_batch_size, hparams.shuffle, hparams.seed)
     train_model = SiameseModel(hparams, train_iterator, ModeKeys.TRAIN)
 
@@ -149,7 +171,12 @@ def main():
     # Set random seed
     tf.set_random_seed(args.seed)
     vocab_table = lookup_ops.index_table_from_file(hparams.vocab_path, default_value=0)
-    valid_iterator = create_labeled_data_iterator(hparams.valid_txt1, hparams.valid_txt2, hparams.valid_labels,
+    if hparams.use_context:
+      valid_iterator = create_labeled_data_iterator_with_context(hparams.valid_context, hparams.valid_txt1, hparams.valid_txt2, hparams.valid_labels,
+                                                    vocab_table, hparams.valid_batch_size)
+    else:
+
+      valid_iterator = create_labeled_data_iterator(hparams.valid_txt1, hparams.valid_txt2, hparams.valid_labels,
                                                   vocab_table, hparams.valid_batch_size)
     valid_model = SiameseModel(hparams, valid_iterator, ModeKeys.EVAL)
 

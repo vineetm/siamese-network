@@ -62,6 +62,39 @@ def create_labeled_data_iterator(txt1, txt2, labels, vocab_table, batch_size, sh
 
   return BatchedInput(txt1, txt2, len_txt1, len_txt2, label, iterator.initializer)
 
+class BatchedCtxInput(namedtuple('BatchedCtxInput', 'context txt1 txt2 len_ctx len_txt1 len_txt2 labels init')):
+  pass
+
+def create_labeled_data_iterator_with_context(context,  txt1, txt2, labels, vocab_table, batch_size, shuffle=False, random_seed=1543):
+  context_dataset = create_wordindex_with_length_dataset(context, vocab_table)
+  text1_dataset = create_wordindex_with_length_dataset(txt1, vocab_table, -1)
+  text2_dataset = create_wordindex_with_length_dataset(txt2, vocab_table, -1)
+
+  # Labels is a single float
+  labels_dataset = data.TextLineDataset(labels)
+  labels_dataset = labels_dataset.map(lambda line: tf.string_to_number(line))
+  labels_dataset = labels_dataset.map(lambda label: tf.cast(label, tf.float32))
+
+  dataset = data.Dataset.zip((context_dataset, text1_dataset, text2_dataset, labels_dataset))
+
+  if shuffle:
+    logging.info('Shuffle dataset')
+    dataset = dataset.shuffle(1000 * batch_size, random_seed)
+
+  # Separate out lengths of txt1 and txt2
+  dataset = dataset.map(lambda ctx, t1, t2, label: (ctx[0], t1[0], t2[0], ctx[1], t1[1], t2[1], label))
+
+  # Create a padded batch
+  dataset = dataset.padded_batch(batch_size, padded_shapes=(
+  tf.TensorShape([None]), tf.TensorShape([None]), tf.TensorShape([None]), tf.TensorShape([]),
+  tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([])))
+
+  iterator = dataset.make_initializable_iterator()
+  ctx, txt1, txt2, len_ctx, len_txt1, len_txt2, label = iterator.get_next()
+
+  return BatchedCtxInput(ctx, txt1, txt2, len_ctx, len_txt1, len_txt2, label, iterator.initializer)
+
+
 class InferInput(namedtuple('InferInput', 'txt1 txt2 len_txt1 len_txt2 init')):
   pass
 
