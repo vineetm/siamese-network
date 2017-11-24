@@ -95,6 +95,31 @@ def create_labeled_data_iterator_with_context(context,  txt1, txt2, labels, voca
   return BatchedCtxInput(ctx, txt1, txt2, len_ctx, len_txt1, len_txt2, label, iterator.initializer)
 
 
+class InferCtxInput(namedtuple('InferInput', 'context txt1 txt2 len_ctx len_txt1 len_txt2 init')):
+  pass
+
+
+def create_data_iterator_with_ctx(context, txt1, txt2, vocab_table, batch_size):
+  context_dataset = create_wordindex_with_length_dataset(context, vocab_table)
+  text1_dataset = create_wordindex_with_length_dataset(txt1, vocab_table, -1)
+  text2_dataset = create_wordindex_with_length_dataset(txt2, vocab_table, -1)
+
+  dataset = data.Dataset.zip((context_dataset, text1_dataset, text2_dataset))
+
+  # Separate out lengths of txt1 and txt2
+  dataset = dataset.map(lambda ctx, t1, t2: (ctx[0], t1[0], t2[0], ctx[1], t1[1], t2[1]))
+
+  # Create a padded batch
+  dataset = dataset.padded_batch(batch_size, padded_shapes=(
+    tf.TensorShape([None]), tf.TensorShape([None]), tf.TensorShape([None]),
+    tf.TensorShape([]), tf.TensorShape([]), tf.TensorShape([])))
+
+  iterator = dataset.make_initializable_iterator()
+  ctx, txt1, txt2, len_ctx, len_txt1, len_txt2 = iterator.get_next()
+
+  return InferCtxInput(ctx, txt1, txt2, len_ctx, len_txt1, len_txt2, iterator.initializer)
+
+
 class InferInput(namedtuple('InferInput', 'txt1 txt2 len_txt1 len_txt2 init')):
   pass
 
