@@ -44,7 +44,7 @@ class SiameseModel:
     #This is batch_size x num_units
     self.vec_txt1 = state_txt1.h
 
-    if hparams.use_context:
+    if 'use_context' in hparams and hparams.use_context:
       logging.info('Using Separate ctx vector')
       self.context_vectors = tf.nn.embedding_lookup(self.W, self.iterator.context, name='ctxv')
 
