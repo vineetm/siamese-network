@@ -54,8 +54,7 @@ def setup_args():
   parser.add_argument('-seed', default=1543, type=int)
   parser.add_argument('-forget_bias', default=1.0, type=float)
   parser.add_argument('-use_context', default=False, action='store_true')
-  parser.add_argument('-diff_context_weights', default=False, action='store_true')
-
+  
   parser.add_argument('-shuffle', help='Randomly shuffle dataset', action='store_true', default=False)
   args = parser.parse_args()
   return args
@@ -116,8 +115,7 @@ def build_hparams(args):
                  shuffle = args.shuffle,
                  seed = args.seed,
                  forget_bias = args.forget_bias,
-                 use_context = args.use_context,
-                 diff_context_weights = args.diff_context_weights
+                 use_context = args.use_context
                  )
 
 
