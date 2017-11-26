@@ -56,7 +56,7 @@ class SiameseModel:
 
       self.WCtx = tf.get_variable(name='WCtx', shape=[self.num_units, self.num_units])
       vec_txt1 = tf.tanh(tf.matmul(self.vec_txt1 + vec_ctx, self.WCtx))
-      vec_txt1 = tf.nn.dropout(vec_txt1, keep_prob=(1 - hparams.droput))
+      vec_txt1 = tf.nn.dropout(vec_txt1, keep_prob=(1 - hparams.dropout))
       self.vec_txt1 = vec_txt1
 
     with tf.variable_scope('rnn', reuse=True):
