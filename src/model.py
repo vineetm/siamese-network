@@ -34,8 +34,10 @@ class SiameseModel:
 
     # Dropout is only applied at train. Not required at test as the inputs are scaled accordingly
     if mode == ModeKeys.TRAIN:
-      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1 - hparams.dropout))
-      logging.info('Dropout: %f'%hparams.dropout)
+      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1 - hparams.dropout),
+                                    output_keep_prob=(1 - hparams.dropout))
+
+      logging.info('Dropout: %.2f'%hparams.dropout)
 
     with tf.variable_scope('rnn'):
       _, state_txt1 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors, sequence_length=self.iterator.len_txt1,
@@ -54,8 +56,8 @@ class SiameseModel:
 
       self.WCtx = tf.get_variable(name='WCtx', shape=[self.num_units, self.num_units])
       vec_txt1 = tf.tanh(tf.matmul(self.vec_txt1 + vec_ctx, self.WCtx))
+      vec_txt1 = tf.nn.dropout(vec_txt1, keep_prob=(1 - hparams.droput))
       self.vec_txt1 = vec_txt1
-
 
     with tf.variable_scope('rnn', reuse=True):
       outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
