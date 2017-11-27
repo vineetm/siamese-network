@@ -50,14 +50,17 @@ class SiameseModel:
       logging.info('Using Separate ctx vector')
       self.context_vectors = tf.nn.embedding_lookup(self.W, self.iterator.context, name='ctxv')
 
+      #RNN to compute ctx vector
       with tf.variable_scope('rnn', reuse=True):
         _, state_ctx = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors, sequence_length=self.iterator.len_txt1, dtype=tf.float32)
       vec_ctx = state_ctx.h
 
-      self.WCtx = tf.get_variable(name='WCtx', shape=[self.num_units, self.num_units])
-      vec_txt1 = tf.tanh(tf.matmul(self.vec_txt1 + vec_ctx, self.WCtx))
-      if mode == ModeKeys.TRAIN:
-        vec_txt1 = tf.nn.dropout(vec_txt1, keep_prob=(1 - hparams.dropout))
+      #RNN to combine vec_txt1 and vec_ctx
+      with tf.variable_scope('rnn', reuse=True):
+        _, level1  = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=tf.stack([vec_ctx, self.vec_txt1], axis=1),
+                                sequence_length=tf.tile([2], [tf.size(self.iterator.len_txt1)]), dtype=tf.float32)
+
+      vec_txt1 = level1.h
       self.vec_txt1 = vec_txt1
 
     with tf.variable_scope('rnn', reuse=True):
