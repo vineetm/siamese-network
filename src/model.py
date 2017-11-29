@@ -58,8 +58,9 @@ class SiameseModel:
       vec_ctx = state_ctx.h
 
       #RNN to combine vec_txt1 and vec_ctx
-      with tf.variable_scope('rnn', reuse=True):
-        _, level1  = tf.nn.dynamic_rnn(cell=rnn_cell_wd, inputs=tf.stack([vec_ctx, self.vec_txt1], axis=1),
+      rnn_cell_level1 = rnn.BasicRNNCell(self.num_units)
+      with tf.variable_scope('rnn_level1'):
+        _, level1  = tf.nn.dynamic_rnn(cell=rnn_cell_level1, inputs=tf.stack([vec_ctx, self.vec_txt1], axis=1),
                                 sequence_length=tf.tile([2], [tf.size(self.iterator.len_txt1)]), dtype=tf.float32)
 
       vec_txt1 = level1.h
