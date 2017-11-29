@@ -63,7 +63,7 @@ class SiameseModel:
         _, level1  = tf.nn.dynamic_rnn(cell=rnn_cell_level1, inputs=tf.stack([vec_ctx, self.vec_txt1], axis=1),
                                 sequence_length=tf.tile([2], [tf.size(self.iterator.len_txt1)]), dtype=tf.float32)
 
-      vec_txt1 = level1.h
+      vec_txt1 = level1
       self.vec_txt1 = vec_txt1
 
     with tf.variable_scope('rnn', reuse=True):
