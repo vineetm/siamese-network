@@ -28,16 +28,18 @@ class SiameseModel:
 
     #Make default forget gate bias as 2.0, as indicated in paper...
     if 'forget_bias' in hparams:
-      rnn_cell = rnn.BasicLSTMCell(self.num_units, forget_bias=hparams.forget_bias)
+      rnn_cell_wd = rnn.BasicLSTMCell(self.num_units, forget_bias=hparams.forget_bias)
     else:
-      rnn_cell = rnn.BasicLSTMCell(self.num_units, forget_bias=2.0)
+      rnn_cell_wd = rnn.BasicLSTMCell(self.num_units, forget_bias=2.0)
 
     # Dropout is only applied at train. Not required at test as the inputs are scaled accordingly
     if mode == ModeKeys.TRAIN:
-      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1 - hparams.dropout),
+      rnn_cell = rnn.DropoutWrapper(rnn_cell_wd, input_keep_prob=(1 - hparams.dropout),
                                     output_keep_prob=(1 - hparams.dropout))
 
       logging.info('Dropout: %.2f'%hparams.dropout)
+    else:
+      rnn_cell = rnn_cell_wd
 
     with tf.variable_scope('rnn'):
       _, state_txt1 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors, sequence_length=self.iterator.len_txt1,
@@ -57,7 +59,7 @@ class SiameseModel:
 
       #RNN to combine vec_txt1 and vec_ctx
       with tf.variable_scope('rnn', reuse=True):
-        _, level1  = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=tf.stack([vec_ctx, self.vec_txt1], axis=1),
+        _, level1  = tf.nn.dynamic_rnn(cell=rnn_cell_wd, inputs=tf.stack([vec_ctx, self.vec_txt1], axis=1),
                                 sequence_length=tf.tile([2], [tf.size(self.iterator.len_txt1)]), dtype=tf.float32)
 
       vec_txt1 = level1.h
