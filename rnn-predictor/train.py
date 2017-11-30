@@ -1,4 +1,4 @@
-import logging, argparse, os, codecs
+import logging, argparse, os, codecs, itertools, time
 import tensorflow as tf
 from tensorflow.contrib.training import HParams
 from tensorflow.python.ops import lookup_ops
@@ -42,6 +42,10 @@ def setup_args():
   parser.add_argument('-model_dir', default=None, help='Model directory')
 
   parser.add_argument('-seed', type=int, default=1543)
+
+  parser.add_argument('-steps_per_eval', default=1000, type=int, help='Steps per evaluation')
+  parser.add_argument('-steps_per_stats', default=200, type=int, help='Steps per stats and model checkpoint')
+
   args = parser.parse_args()
 
   return args
@@ -69,7 +73,10 @@ def build_hparams(args):
                  valid_batch_size = args.valid_batch_size,
 
                  model_dir = args.model_dir,
-                 seed = args.seed
+                 seed = args.seed,
+
+                 steps_per_eval = args.steps_per_eval,
+                 steps_per_stats= args.steps_per_stats
                  )
 
 
@@ -85,13 +92,8 @@ def main():
   logging.info(args)
   hparams = build_hparams(args)
 
-  # # Create Model dir if required
-  # if not tf.gfile.Exists(hparams.model_dir):
-  #   logging.info('Creating Model dir: %s' % hparams.model_dir)
-  #   tf.gfile.MkDir(hparams.model_dir)
-  # save_hparams(hparams)
 
-  # Create Training graph, and session
+  # Create validation graph, and session
   valid_graph = tf.Graph()
   with valid_graph.as_default():
     tf.set_random_seed(hparams.seed)
@@ -108,7 +110,74 @@ def main():
     valid_sess.run(tf.tables_initializer())
 
     init_valid_loss, time_taken = valid_model.eval(valid_sess)
-    logging.info('Initial Val_loss: %.3f T:%d s'%(init_valid_loss, time_taken))
+    logging.info('Initial Val_loss: %.4f T:%ds'%(init_valid_loss, time_taken))
+
+  # Create Model dir if required
+  if not tf.gfile.Exists(hparams.model_dir):
+    logging.info('Creating Model dir: %s' % hparams.model_dir)
+    tf.gfile.MkDir(hparams.model_dir)
+  save_hparams(hparams)
+
+  train_saver_path = os.path.join(hparams.model_dir, 'tr')
+  valid_saver_path = os.path.join(hparams.model_dir, 'best_eval')
+  tf.gfile.MakeDirs(valid_saver_path)
+  valid_saver_path = os.path.join(valid_saver_path, 'sm')
+
+  # Create training model
+  train_graph = tf.Graph()
+  with train_graph.as_default():
+    tf.set_random_seed(hparams.seed)
+    vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
+    vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
+
+    train_iterator = create_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels,
+                                             vocab_table_output,
+                                             hparams.size_vocab_output, hparams.train_batch_size)
+
+    train_model = RNNPredictor(hparams, train_iterator, ModeKeys.TRAIN)
+    train_sess = tf.Session()
+
+    train_sess.run(tf.global_variables_initializer())
+    train_sess.run(tf.tables_initializer())
+
+  #Training Loop
+  best_valid_loss = 100.0
+  last_eval_step = 0
+  last_stats_step = 0
+
+  epoch_num = 0
+  epoch_st_time = time.time()
+
+  for train_step in itertools.count():
+    while True:
+      try:
+        _, train_loss = train_model.train(train_sess)
+
+        if train_step - last_stats_step >= hparams.steps_per_stats:
+          logging.info('Epoch: %d Step: %d Train_Loss: %.4f'%(epoch_num, train_model, train_loss))
+          train_model.saver.save(train_sess, train_saver_path, train_step)
+          last_stats_step = train_step
+
+        if train_step - last_eval_step >= hparams.steps_per_eval:
+          latest_train_ckpt = tf.train.latest_checkpoint(hparams.model_dir)
+          valid_model.saver.restore(valid_sess, latest_train_ckpt)
+
+          valid_loss, valid_time_taken = valid_model.eval(valid_sess)
+          if valid_loss < best_valid_loss:
+            valid_model.saver.save(valid_sess, valid_saver_path, train_step)
+            logging.info('Epoch: %d Step: %d Valid Loss Improved: New: %.4f Old: %.4f T:%ds'%(epoch_num, train_step,
+                                                                                        valid_loss, best_valid_loss, valid_time_taken))
+            best_valid_loss = valid_loss
+          else:
+            logging.info('Epoch: %d Step: %d Valid Loss Worse: New: %.4f Old: %.4f T:%ds' % (epoch_num, train_step,
+                                                                                       valid_loss, best_valid_loss, valid_time_taken))
+          last_eval_step = train_step
+
+      except tf.errors.OutOfRangeError:
+        epoch_num += 1
+        logging.info('Epoch %d DONE T:%ds Step: %d'%(epoch_num, time.time() - epoch_st_time, train_step))
+        train_sess.run(train_iterator.init)
+        epoch_st_time = time.time()
 
 
 if __name__ == '__main__':

@@ -33,6 +33,9 @@ class RNNPredictor:
     #Add weights for each output label
     self.LW = tf.get_variable(name = 'label_weights', shape=[self.hparams.d, self.hparams.size_vocab_output])
 
+    #In order to save model...
+    self.saver = tf.train.Saver(tf.global_variables())
+
     #This is batch_size x output_vocab
     self.logits = tf.matmul(self.sentence_vector, self.LW)
 
@@ -41,6 +44,8 @@ class RNNPredictor:
 
     #Now, this is a float
     self.loss = tf.reduce_mean(self.batch_loss)
+
+
 
     if mode == ModeKeys.TRAIN:
       self.opt = tf.train.AdamOptimizer(self.hparams.lr)
