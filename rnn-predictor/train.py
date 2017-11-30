@@ -139,6 +139,7 @@ def main():
 
     train_sess.run(tf.global_variables_initializer())
     train_sess.run(tf.tables_initializer())
+    train_sess.run(train_iterator.init)
 
   #Training Loop
   best_valid_loss = 100.0
@@ -149,35 +150,34 @@ def main():
   epoch_st_time = time.time()
 
   for train_step in itertools.count():
-    while True:
-      try:
-        _, train_loss = train_model.train(train_sess)
+    try:
+      _, train_loss = train_model.train(train_sess)
 
-        if train_step - last_stats_step >= hparams.steps_per_stats:
-          logging.info('Epoch: %d Step: %d Train_Loss: %.4f'%(epoch_num, train_model, train_loss))
-          train_model.saver.save(train_sess, train_saver_path, train_step)
-          last_stats_step = train_step
+      if train_step - last_stats_step >= hparams.steps_per_stats:
+        logging.info('Epoch: %d Step: %d Train_Loss: %.4f'%(epoch_num, train_step, train_loss))
+        train_model.saver.save(train_sess, train_saver_path, train_step)
+        last_stats_step = train_step
 
-        if train_step - last_eval_step >= hparams.steps_per_eval:
-          latest_train_ckpt = tf.train.latest_checkpoint(hparams.model_dir)
-          valid_model.saver.restore(valid_sess, latest_train_ckpt)
+      if train_step - last_eval_step >= hparams.steps_per_eval:
+        latest_train_ckpt = tf.train.latest_checkpoint(hparams.model_dir)
+        valid_model.saver.restore(valid_sess, latest_train_ckpt)
 
-          valid_loss, valid_time_taken = valid_model.eval(valid_sess)
-          if valid_loss < best_valid_loss:
-            valid_model.saver.save(valid_sess, valid_saver_path, train_step)
-            logging.info('Epoch: %d Step: %d Valid Loss Improved: New: %.4f Old: %.4f T:%ds'%(epoch_num, train_step,
-                                                                                        valid_loss, best_valid_loss, valid_time_taken))
-            best_valid_loss = valid_loss
-          else:
-            logging.info('Epoch: %d Step: %d Valid Loss Worse: New: %.4f Old: %.4f T:%ds' % (epoch_num, train_step,
-                                                                                       valid_loss, best_valid_loss, valid_time_taken))
-          last_eval_step = train_step
+        valid_loss, valid_time_taken = valid_model.eval(valid_sess)
+        if valid_loss < best_valid_loss:
+          valid_model.saver.save(valid_sess, valid_saver_path, train_step)
+          logging.info('Epoch: %d Step: %d Valid Loss Improved: New: %.4f Old: %.4f T:%ds'%(epoch_num, train_step,
+                                                                                      valid_loss, best_valid_loss, valid_time_taken))
+          best_valid_loss = valid_loss
+        else:
+          logging.info('Epoch: %d Step: %d Valid Loss Worse: New: %.4f Old: %.4f T:%ds' % (epoch_num, train_step,
+                                                                                     valid_loss, best_valid_loss, valid_time_taken))
+        last_eval_step = train_step
 
-      except tf.errors.OutOfRangeError:
-        epoch_num += 1
-        logging.info('Epoch %d DONE T:%ds Step: %d'%(epoch_num, time.time() - epoch_st_time, train_step))
-        train_sess.run(train_iterator.init)
-        epoch_st_time = time.time()
+    except tf.errors.OutOfRangeError:
+      epoch_num += 1
+      logging.info('Epoch %d DONE T:%ds Step: %d'%(epoch_num, time.time() - epoch_st_time, train_step))
+      train_sess.run(train_iterator.init)
+      epoch_st_time = time.time()
 
 
 if __name__ == '__main__':
