@@ -31,6 +31,8 @@ def setup_args():
   parser.add_argument('-size_vocab_output', default=5000, type=int, help='Ouput vocab size')
   parser.add_argument('-dropout', default=0.0, type=float, help='Dropout for RNN Cell')
 
+  parser.add_argument('-lr', default=0.001, type=float, help='Learning rate')
+
   parser.add_argument('-train_batch_size', default=64, type=int)
   parser.add_argument('-valid_batch_size', default=256, type=int)
 
@@ -59,6 +61,8 @@ def build_hparams(args):
                  size_vocab_input = args.size_vocab_input,
                  size_vocab_output = args.size_vocab_output,
                  dropout = args.dropout,
+                 lr = args.lr,
+
                  train_batch_size = args.train_batch_size,
                  valid_batch_size = args.valid_batch_size,
 

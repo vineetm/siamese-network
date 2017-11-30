@@ -1,6 +1,8 @@
 from tensorflow.contrib.learn import ModeKeys
 import tensorflow as tf
+import numpy as np
 from tensorflow.contrib import rnn
+
 
 class RNNPredictor:
   def __init__(self, hparams, iterator, mode):
@@ -45,3 +47,19 @@ class RNNPredictor:
       self.train_step = self.opt.minimize(self.loss)
 
 
+  def train(self, training_session):
+    assert self.mode == ModeKeys.TRAIN
+    return training_session.run([self.train_step, self.loss])
+
+
+  def eval(self, eval_session):
+    assert self.mode == ModeKeys.EVAL
+
+    #Eval is just average loss over entire dataset
+    eval_session.run(self.iterator.init)
+    eval_losses = []
+    while True:
+      try:
+        eval_losses.append(eval_session.run(self.loss))
+      except tf.errors.OutOfRangeError:
+        return np.mean(eval_losses)
