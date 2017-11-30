@@ -1,6 +1,9 @@
 import logging, argparse, os, codecs
 import tensorflow as tf
 from tensorflow.contrib.training import HParams
+from tensorflow.python.ops import lookup_ops
+
+from iterator_utils import create_dataset_iterator
 
 def setup_args():
   parser = argparse.ArgumentParser()
@@ -45,9 +48,9 @@ def build_hparams(args):
                  train_labels = args.train_labels,
                  train_context = args.train_context,
 
-                 valid_sentences=args.train_sentences,
-                 valid_labels=args.train_labels,
-                 valid_context=args.train_context,
+                 valid_sentences=args.valid_sentences,
+                 valid_labels=args.valid_labels,
+                 valid_context=args.valid_context,
 
                  vocab_input = args.vocab_input,
                  vocab_output = args.vocab_output,
@@ -82,12 +85,16 @@ def main():
     tf.gfile.MkDir(hparams.model_dir)
   save_hparams(hparams)
 
+
   # Create Training graph, and session
   train_graph = tf.Graph()
   with train_graph.as_default():
     tf.set_random_seed(hparams.seed)
-    
+    vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
+    vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
 
+    train_iterator = create_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels, vocab_table_output,
+                                             hparams.size_vocab_output, hparams.batch_size)
 
 
 if __name__ == '__main__':
