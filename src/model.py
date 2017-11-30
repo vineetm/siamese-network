@@ -34,8 +34,7 @@ class SiameseModel:
 
     # Dropout is only applied at train. Not required at test as the inputs are scaled accordingly
     if mode == ModeKeys.TRAIN:
-      rnn_cell = rnn.DropoutWrapper(rnn_cell_wd, input_keep_prob=(1 - hparams.dropout),
-                                    output_keep_prob=(1 - hparams.dropout))
+      rnn_cell = rnn.DropoutWrapper(rnn_cell_wd, input_keep_prob=(1 - hparams.dropout))
 
       logging.info('Dropout: %.2f'%hparams.dropout)
     else:
