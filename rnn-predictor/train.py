@@ -2,8 +2,10 @@ import logging, argparse, os, codecs
 import tensorflow as tf
 from tensorflow.contrib.training import HParams
 from tensorflow.python.ops import lookup_ops
+from tensorflow.contrib.learn import ModeKeys
 
 from iterator_utils import create_dataset_iterator
+from model import RNNPredictor
 
 def setup_args():
   parser = argparse.ArgumentParser()
@@ -83,22 +85,30 @@ def main():
   logging.info(args)
   hparams = build_hparams(args)
 
-  # Create Model dir if required
-  if not tf.gfile.Exists(hparams.model_dir):
-    logging.info('Creating Model dir: %s' % hparams.model_dir)
-    tf.gfile.MkDir(hparams.model_dir)
-  save_hparams(hparams)
-
+  # # Create Model dir if required
+  # if not tf.gfile.Exists(hparams.model_dir):
+  #   logging.info('Creating Model dir: %s' % hparams.model_dir)
+  #   tf.gfile.MkDir(hparams.model_dir)
+  # save_hparams(hparams)
 
   # Create Training graph, and session
-  train_graph = tf.Graph()
-  with train_graph.as_default():
+  valid_graph = tf.Graph()
+  with valid_graph.as_default():
     tf.set_random_seed(hparams.seed)
     vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
     vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
 
-    train_iterator = create_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels, vocab_table_output,
-                                             hparams.size_vocab_output, hparams.batch_size)
+    train_iterator = create_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels, vocab_table_output,
+                                             hparams.size_vocab_output, hparams.valid_batch_size)
+
+    valid_model = RNNPredictor(hparams, train_iterator, ModeKeys.EVAL)
+    valid_sess = tf.Session()
+
+    valid_sess.run(tf.global_variables_initializer())
+    valid_sess.run(tf.tables_initializer())
+
+    init_valid_loss, time_taken = valid_model.eval(valid_sess)
+    logging.info('Initial Val_loss: %.3f T:%d s'%(init_valid_loss, time_taken))
 
 
 if __name__ == '__main__':

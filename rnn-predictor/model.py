@@ -1,6 +1,7 @@
 from tensorflow.contrib.learn import ModeKeys
 import tensorflow as tf
 import numpy as np
+import time
 from tensorflow.contrib import rnn
 
 
@@ -17,7 +18,7 @@ class RNNPredictor:
     self.word_vectors = tf.nn.embedding_lookup(self.W, self.iterator.sentence)
 
     with tf.variable_scope('rnn'):
-      rnn_cell = rnn.BasicRNNCell(self.hparams.d)
+      rnn_cell = rnn.BasicLSTMCell(self.hparams.d)
 
       #Dropout wrapper at training time
       if mode == ModeKeys.TRAIN and self.hparams.dropout > 0.0:
@@ -56,10 +57,11 @@ class RNNPredictor:
     assert self.mode == ModeKeys.EVAL
 
     #Eval is just average loss over entire dataset
+    start_time = time.time()
     eval_session.run(self.iterator.init)
     eval_losses = []
     while True:
       try:
         eval_losses.append(eval_session.run(self.loss))
       except tf.errors.OutOfRangeError:
-        return np.mean(eval_losses)
+        return np.mean(eval_losses), time.time() - start_time
