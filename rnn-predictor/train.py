@@ -142,7 +142,7 @@ def do_train(hparams):
     init_valid_loss, time_taken, _ = valid_model.eval(valid_sess)
     logging.info('Initial Val_loss: %.4f T:%ds' % (init_valid_loss, time_taken))
 
-    f1, pr, re, _, f1_time = valid_model.f1_eval(valid_sess)
+    f1, pr, re, _, _, _, f1_time = valid_model.f1_eval(valid_sess)
     logging.info('Initial F1:%.4f Pr:%.4f Re:%.4f T:%ds'% (f1, pr, re, f1_time))
 
   # Create Model dir if required
@@ -202,10 +202,12 @@ def do_train(hparams):
         valid_model.saver.restore(valid_sess, latest_train_ckpt)
 
         valid_loss, valid_time_taken, eval_summary = valid_model.eval(valid_sess)
-        f1, pr, re, summary, f1_time = valid_model.f1_eval(valid_sess)
+        f1, pr, re, f1_summary, pr_summary, re_summary, f1_time = valid_model.f1_eval(valid_sess)
 
         summary_writer.add_summary(eval_summary, train_step)
-        summary_writer.add_summary(summary, train_step)
+        summary_writer.add_summary(f1_summary, train_step)
+        summary_writer.add_summary(pr_summary, train_step)
+        summary_writer.add_summary(re_summary, train_step)
 
         if f1 > best_f1_score:
           valid_model.saver.save(valid_sess, valid_f1_saver_path, train_step)

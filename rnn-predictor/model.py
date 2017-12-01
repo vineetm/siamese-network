@@ -134,5 +134,4 @@ class RNNPredictor:
         f1_summary = tf.Summary(value=[tf.Summary.Value(tag='f1', simple_value=float(f1))])
         pr_summary = tf.Summary(value=[tf.Summary.Value(tag='pr', simple_value=float(pr[1]))])
         re_summary = tf.Summary(value=[tf.Summary.Value(tag='re', simple_value=float(re[1]))])
-        summary = tf.summary.merge([f1_summary, pr_summary, re_summary])
-        return f1, pr[1], re[1], summary, time.time() - start_time
+        return f1, pr[1], re[1], f1_summary, pr_summary, re_summary, time.time() - start_time
