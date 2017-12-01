@@ -5,7 +5,7 @@ from tensorflow.contrib.training import HParams
 from tensorflow.python.ops import lookup_ops
 from tensorflow.contrib.learn import ModeKeys
 
-from iterator_utils import create_dataset_iterator
+from iterator_utils import create_train_dataset_iterator, create_infer_dataset_iterator
 from model import RNNPredictor
 
 def setup_args():
@@ -24,9 +24,9 @@ def setup_args():
   parser.add_argument('-valid_context', default=None, help='Additional context')
 
   parser.add_argument('-infer_sentences', default=None, help='infer sentences for which vector would be computed')
-  parser.add_argument('-infer_labels', default=None, help='infer labels file')
   parser.add_argument('-infer_context', default=None, help='Additional context')
   parser.add_argument('-infer_out', default=None, help='Additional context')
+  parser.add_argument('-prob_cutoff', default=0.5, type=float)
 
   parser.add_argument('-vocab_input', default=None, help='Vocab file to convert word to ID. line=0 is considered as UNK')
   parser.add_argument('-vocab_output', default=None, help='Vocab file to convert label to ID. line=0 is considered as UNK')
@@ -34,6 +34,8 @@ def setup_args():
   #2. Model parameters
   parser.add_argument('-d', default=128, type=int, help='Number of units. This is same for word embedding, RNN cell, '
                                                         'class weights')
+
+  parser.add_argument('-pos_scaling', default=10, type=int)
 
   parser.add_argument('-size_vocab_input',  default=5000, type=int, help='Input vocab size')
   parser.add_argument('-size_vocab_output', default=5000, type=int, help='Ouput vocab size')
@@ -68,14 +70,15 @@ def build_hparams(args):
                  valid_context=args.valid_context,
 
                  infer_sentences=args.infer_sentences,
-                 infer_labels=args.infer_labels,
                  infer_context=args.infer_context,
                  infer_out = args.infer_out,
+                 prob_cutoff = args.prob_cutoff,
 
                  vocab_input = args.vocab_input,
                  vocab_output = args.vocab_output,
 
                  d = args.d,
+                 pos_scaling = args.pos_scaling,
                  size_vocab_input = args.size_vocab_input,
                  size_vocab_output = args.size_vocab_output,
                  dropout = args.dropout,
@@ -98,6 +101,7 @@ def save_hparams(hparams):
   logging.info("Saving hparams to %s" % hparams_file)
   with codecs.getwriter("utf-8")(tf.gfile.GFile(hparams_file, "wb")) as f:
     f.write(hparams.to_json())
+
 
 def load_hparams(hparams_file):
   if tf.gfile.Exists(hparams_file):
@@ -122,9 +126,9 @@ def do_train(hparams):
     vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
     vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
 
-    train_iterator = create_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels,
+    train_iterator = create_train_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels,
                                              vocab_table_output,
-                                             hparams.size_vocab_output, hparams.valid_batch_size)
+                                             hparams.size_vocab_output, hparams.valid_batch_size, hparams.pos_scaling)
 
     valid_model = RNNPredictor(hparams, train_iterator, ModeKeys.EVAL)
     valid_sess = tf.Session()
@@ -152,9 +156,9 @@ def do_train(hparams):
     vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
     vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
 
-    train_iterator = create_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels,
+    train_iterator = create_train_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels,
                                              vocab_table_output,
-                                             hparams.size_vocab_output, hparams.train_batch_size)
+                                             hparams.size_vocab_output, hparams.train_batch_size, hparams.pos_scaling)
 
     train_model = RNNPredictor(hparams, train_iterator, ModeKeys.TRAIN)
     train_sess = tf.Session()
@@ -207,12 +211,9 @@ def do_infer(hparams, args):
 
   with infer_graph.as_default():
     vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
-    vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
     rev_vocab_table_output = lookup_ops.index_to_string_table_from_file(hparams.vocab_output)
 
-    infer_iterator = create_dataset_iterator(args.infer_sentences, vocab_table_input, args.infer_labels,
-                                             vocab_table_output,
-                                             hparams.size_vocab_output, args.infer_batch_size)
+    infer_iterator = create_infer_dataset_iterator(args.infer_sentences, vocab_table_input, args.infer_batch_size)
 
     infer_model = RNNPredictor(hparams, infer_iterator, ModeKeys.INFER)
     infer_sess = tf.Session()
@@ -221,7 +222,7 @@ def do_infer(hparams, args):
     infer_model.saver.restore(infer_sess, latest_train_ckpt)
 
     fw = open(args.infer_out, 'w')
-    infer_model.get_pos_label_classes(infer_sess, rev_vocab_table_output, 0.1, fw)
+    infer_model.get_pos_label_classes(infer_sess, rev_vocab_table_output, args.prob_cutoff, fw)
 
 
 def main():

@@ -40,10 +40,12 @@ class RNNPredictor:
     self.logits = tf.matmul(self.sentence_vector, self.LW)
 
     #This too is batch_size x output_vocab
-    self.batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.iterator.labels)
+    if mode == ModeKeys.TRAIN or mode == ModeKeys.EVAL:
+      self.batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.iterator.labels)
 
-    #Now, this is a float
-    self.loss = tf.reduce_mean(self.batch_loss)
+      self.batch_loss = self.batch_loss * self.iterator.weights
+      #Now, this is a float
+      self.loss = tf.reduce_mean(self.batch_loss)
 
     if mode == ModeKeys.TRAIN:
       self.opt = tf.train.AdamOptimizer(self.hparams.lr)
@@ -56,6 +58,7 @@ class RNNPredictor:
       self.cutoff_prob = tf.placeholder(dtype=tf.float32)
       self.pos_labels = tf.squeeze(tf.where(tf.greater_equal(self.probs, self.cutoff_prob)))
       self.lookup_indexes = tf.placeholder(tf.int64)
+
 
   def lookup_index(self, sess, rev_vocab_table, index):
     return sess.run(rev_vocab_table.lookup(self.lookup_indexes) , {self.lookup_indexes:index})
@@ -74,7 +77,6 @@ class RNNPredictor:
           fw.write('%s\n'%' '.join(output_classes[datum_num]))
       except tf.errors.OutOfRangeError:
         return
-
 
 
   def train(self, training_session):
