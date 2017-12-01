@@ -39,6 +39,7 @@ class RNNPredictor:
     #This is batch_size x output_vocab
     self.logits = tf.matmul(self.sentence_vector, self.LW)
 
+
     #This too is batch_size x output_vocab
     if mode == ModeKeys.TRAIN or mode == ModeKeys.EVAL:
       self.batch_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.iterator.labels)
@@ -61,13 +62,22 @@ class RNNPredictor:
       self.train_summary = tf.summary.merge([tf.summary.scalar('train_loss', self.loss),
                                              tf.summary.scalar('grad_norm', self.grad_norm)])
 
-    if mode == ModeKeys.INFER:
+    if mode == ModeKeys.INFER or ModeKeys.EVAL:
       self.probs = tf.sigmoid(self.logits)
       self.num_items = tf.shape(self.iterator.sentence)[0]
-      self.cutoff_prob = tf.placeholder(dtype=tf.float32)
+      self.cutoff_prob = tf.placeholder(dtype=tf.float32, shape=())
       self.pos_labels = tf.squeeze(tf.where(tf.greater_equal(self.probs, self.cutoff_prob)))
       self.lookup_indexes = tf.placeholder(tf.int64)
 
+    if ModeKeys.EVAL:
+      with tf.variable_scope('metrics') as scope:
+        self.precision = tf.metrics.precision_at_thresholds(labels=self.iterator.labels, predictions=self.probs,
+                                                           thresholds=[0.5])
+        self.recall = tf.metrics.recall_at_thresholds(labels=self.iterator.labels, predictions=self.probs,
+                                                           thresholds=[0.5])
+
+        vars = tf.contrib.framework.get_variables(scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+      self.reset_metrics_op = tf.variables_initializer(vars)
 
   def lookup_index(self, sess, rev_vocab_table, index):
     return sess.run(rev_vocab_table.lookup(self.lookup_indexes) , {self.lookup_indexes:index})
@@ -107,3 +117,22 @@ class RNNPredictor:
         eval_loss = np.mean(eval_losses)
         eval_summary = tf.Summary(value=[tf.Summary.Value(tag='eval_loss', simple_value=eval_loss)])
         return eval_loss, time.time() - start_time, eval_summary
+
+
+  #Compute pr, recall and F1 scores for positive labels
+  def f1_eval(self, eval_session):
+    #Init the dataset iterator
+    start_time = time.time()
+    eval_session.run(self.reset_metrics_op)
+    eval_session.run(self.iterator.init)
+    while True:
+      try:
+        pr, re = eval_session.run([self.precision, self.recall])
+      except tf.errors.OutOfRangeError:
+        f1 = (2 * pr[1] * re[1]) / (pr[1] + re[1])
+        logging.info('F1: %.4f Pr: %.4f Re: %.4f'%(f1, pr[1], re[1]))
+        f1_summary = tf.Summary(value=[tf.Summary.Value(tag='f1', simple_value=float(f1))])
+        pr_summary = tf.Summary(value=[tf.Summary.Value(tag='pr', simple_value=float(pr[1]))])
+        re_summary = tf.Summary(value=[tf.Summary.Value(tag='re', simple_value=float(re[1]))])
+        summary = tf.summary.merge([f1_summary, pr_summary, re_summary])
+        return f1, pr[1], re[1], summary, time.time() - start_time
