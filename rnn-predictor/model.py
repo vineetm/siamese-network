@@ -1,9 +1,9 @@
 from tensorflow.contrib.learn import ModeKeys
 import tensorflow as tf
 import numpy as np
-import time
+import time, logging
 from tensorflow.contrib import rnn
-from collections import OrderedDict
+
 
 class RNNPredictor:
   def __init__(self, hparams, iterator, mode):
@@ -49,8 +49,17 @@ class RNNPredictor:
 
     if mode == ModeKeys.TRAIN:
       self.opt = tf.train.AdamOptimizer(self.hparams.lr)
-      #FIXME: Add gradient clipping
-      self.train_step = self.opt.minimize(self.loss)
+
+      #Now, let us clip gradients as we are dealing with RNN
+      params = tf.trainable_variables()
+      logging.info('Trainable params: %s'%params)
+
+      gradients = tf.gradients(self.loss, params)
+      clipped_gradients, self.grad_norm = tf.clip_by_global_norm(gradients, hparams.max_norm)
+
+      self.train_step = self.opt.apply_gradients(zip(clipped_gradients, params))
+      self.train_summary = tf.summary.merge([tf.summary.scalar('train_loss', self.loss),
+                                             tf.summary.scalar('grad_norm', self.grad_norm)])
 
     if mode == ModeKeys.INFER:
       self.probs = tf.sigmoid(self.logits)
@@ -81,7 +90,7 @@ class RNNPredictor:
 
   def train(self, training_session):
     assert self.mode == ModeKeys.TRAIN
-    return training_session.run([self.train_step, self.loss])
+    return training_session.run([self.train_step, self.loss, self.train_summary])
 
 
   def eval(self, eval_session):
@@ -95,4 +104,6 @@ class RNNPredictor:
       try:
         eval_losses.append(eval_session.run(self.loss))
       except tf.errors.OutOfRangeError:
-        return np.mean(eval_losses), time.time() - start_time
+        eval_loss = np.mean(eval_losses)
+        eval_summary = tf.Summary(value=[tf.Summary.Value(tag='eval_loss', simple_value=eval_loss)])
+        return eval_loss, time.time() - start_time, eval_summary

@@ -43,6 +43,8 @@ def setup_args():
 
   parser.add_argument('-lr', default=0.001, type=float, help='Learning rate')
 
+  parser.add_argument('-max_norm', default=5.0, type=float, help='Learning rate')
+
   parser.add_argument('-train_batch_size', default=64, type=int)
   parser.add_argument('-valid_batch_size', default=256, type=int)
   parser.add_argument('-infer_batch_size', default=16, type=int)
@@ -83,6 +85,7 @@ def build_hparams(args):
                  size_vocab_output = args.size_vocab_output,
                  dropout = args.dropout,
                  lr = args.lr,
+                 max_norm = args.max_norm,
 
                  train_batch_size = args.train_batch_size,
                  valid_batch_size = args.valid_batch_size,
@@ -136,7 +139,7 @@ def do_train(hparams):
     valid_sess.run(tf.global_variables_initializer())
     valid_sess.run(tf.tables_initializer())
 
-    init_valid_loss, time_taken = valid_model.eval(valid_sess)
+    init_valid_loss, time_taken, _ = valid_model.eval(valid_sess)
     logging.info('Initial Val_loss: %.4f T:%ds' % (init_valid_loss, time_taken))
   # Create Model dir if required
   if not tf.gfile.Exists(hparams.model_dir):
@@ -148,6 +151,8 @@ def do_train(hparams):
   valid_saver_path = os.path.join(hparams.model_dir, 'best_eval')
   tf.gfile.MakeDirs(valid_saver_path)
   valid_saver_path = os.path.join(valid_saver_path, 'sm')
+
+  summary_writer = tf.summary.FileWriter(os.path.join(hparams.model_dir, 'train_log'))
 
   # Create training model
   train_graph = tf.Graph()
@@ -177,18 +182,20 @@ def do_train(hparams):
 
   for train_step in itertools.count():
     try:
-      _, train_loss = train_model.train(train_sess)
+      _, train_loss, train_summary = train_model.train(train_sess)
 
       if train_step - last_stats_step >= hparams.steps_per_stats:
         logging.info('Epoch: %d Step: %d Train_Loss: %.4f'%(epoch_num, train_step, train_loss))
         train_model.saver.save(train_sess, train_saver_path, train_step)
+        summary_writer.add_summary(train_summary, train_step)
         last_stats_step = train_step
 
       if train_step - last_eval_step >= hparams.steps_per_eval:
         latest_train_ckpt = tf.train.latest_checkpoint(hparams.model_dir)
         valid_model.saver.restore(valid_sess, latest_train_ckpt)
 
-        valid_loss, valid_time_taken = valid_model.eval(valid_sess)
+        valid_loss, valid_time_taken, eval_summary = valid_model.eval(valid_sess)
+        summary_writer.add_summary(eval_summary, train_step)
         if valid_loss < best_valid_loss:
           valid_model.saver.save(valid_sess, valid_saver_path, train_step)
           logging.info('Epoch: %d Step: %d Valid Loss Improved: New: %.4f Old: %.4f T:%ds'%(epoch_num, train_step,
