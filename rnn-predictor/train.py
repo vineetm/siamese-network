@@ -1,5 +1,6 @@
-import logging, argparse, os, codecs, itertools, time
+import logging, argparse, os, codecs, itertools, time, json
 import tensorflow as tf
+import numpy as np
 from tensorflow.contrib.training import HParams
 from tensorflow.python.ops import lookup_ops
 from tensorflow.contrib.learn import ModeKeys
@@ -22,6 +23,11 @@ def setup_args():
   parser.add_argument('-valid_labels', default=None, help='valid labels file')
   parser.add_argument('-valid_context', default=None, help='Additional context')
 
+  parser.add_argument('-infer_sentences', default=None, help='infer sentences for which vector would be computed')
+  parser.add_argument('-infer_labels', default=None, help='infer labels file')
+  parser.add_argument('-infer_context', default=None, help='Additional context')
+  parser.add_argument('-infer_out', default=None, help='Additional context')
+
   parser.add_argument('-vocab_input', default=None, help='Vocab file to convert word to ID. line=0 is considered as UNK')
   parser.add_argument('-vocab_output', default=None, help='Vocab file to convert label to ID. line=0 is considered as UNK')
 
@@ -37,6 +43,7 @@ def setup_args():
 
   parser.add_argument('-train_batch_size', default=64, type=int)
   parser.add_argument('-valid_batch_size', default=256, type=int)
+  parser.add_argument('-infer_batch_size', default=16, type=int)
 
   #3. Checkpoint related params
   parser.add_argument('-model_dir', default=None, help='Model directory')
@@ -60,6 +67,11 @@ def build_hparams(args):
                  valid_labels=args.valid_labels,
                  valid_context=args.valid_context,
 
+                 infer_sentences=args.infer_sentences,
+                 infer_labels=args.infer_labels,
+                 infer_context=args.infer_context,
+                 infer_out = args.infer_out,
+
                  vocab_input = args.vocab_input,
                  vocab_output = args.vocab_output,
 
@@ -71,6 +83,7 @@ def build_hparams(args):
 
                  train_batch_size = args.train_batch_size,
                  valid_batch_size = args.valid_batch_size,
+                 infer_batch_size=args.valid_batch_size,
 
                  model_dir = args.model_dir,
                  seed = args.seed,
@@ -86,13 +99,22 @@ def save_hparams(hparams):
   with codecs.getwriter("utf-8")(tf.gfile.GFile(hparams_file, "wb")) as f:
     f.write(hparams.to_json())
 
+def load_hparams(hparams_file):
+  if tf.gfile.Exists(hparams_file):
+    logging.info("# Loading hparams from %s" % hparams_file)
+    with codecs.getreader("utf-8")(tf.gfile.GFile(hparams_file, "rb")) as f:
+      try:
+        hparams_values = json.load(f)
+        hparams = tf.contrib.training.HParams(**hparams_values)
+      except ValueError:
+        logging.info("  can't load hparams file")
+        return None
+    return hparams
+  else:
+    return None
 
-def main():
-  args = setup_args()
-  logging.info(args)
-  hparams = build_hparams(args)
 
-
+def do_train(hparams):
   # Create validation graph, and session
   valid_graph = tf.Graph()
   with valid_graph.as_default():
@@ -100,7 +122,8 @@ def main():
     vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
     vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
 
-    train_iterator = create_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels, vocab_table_output,
+    train_iterator = create_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels,
+                                             vocab_table_output,
                                              hparams.size_vocab_output, hparams.valid_batch_size)
 
     valid_model = RNNPredictor(hparams, train_iterator, ModeKeys.EVAL)
@@ -110,8 +133,7 @@ def main():
     valid_sess.run(tf.tables_initializer())
 
     init_valid_loss, time_taken = valid_model.eval(valid_sess)
-    logging.info('Initial Val_loss: %.4f T:%ds'%(init_valid_loss, time_taken))
-
+    logging.info('Initial Val_loss: %.4f T:%ds' % (init_valid_loss, time_taken))
   # Create Model dir if required
   if not tf.gfile.Exists(hparams.model_dir):
     logging.info('Creating Model dir: %s' % hparams.model_dir)
@@ -178,6 +200,45 @@ def main():
       logging.info('Epoch %d DONE T:%ds Step: %d'%(epoch_num, time.time() - epoch_st_time, train_step))
       train_sess.run(train_iterator.init)
       epoch_st_time = time.time()
+
+
+def do_infer(hparams, args):
+  infer_graph = tf.Graph()
+
+  with infer_graph.as_default():
+    vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
+    vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
+    rev_vocab_table_output = lookup_ops.index_to_string_table_from_file(hparams.vocab_output)
+
+    infer_iterator = create_dataset_iterator(args.infer_sentences, vocab_table_input, args.infer_labels,
+                                             vocab_table_output,
+                                             hparams.size_vocab_output, args.infer_batch_size)
+
+    infer_model = RNNPredictor(hparams, infer_iterator, ModeKeys.INFER)
+    infer_sess = tf.Session()
+    infer_sess.run(tf.tables_initializer())
+    latest_train_ckpt = tf.train.latest_checkpoint(args.model_dir)
+    infer_model.saver.restore(infer_sess, latest_train_ckpt)
+
+    fw = open(args.infer_out, 'w')
+    infer_model.get_pos_label_classes(infer_sess, rev_vocab_table_output, 0.1, fw)
+
+
+def main():
+  args = setup_args()
+  logging.info(args)
+
+  if args.train_sentences is None:
+    logging.info('Infer Only mode')
+    hparams_file = os.path.join(args.model_dir, 'hparams')
+    hparams = load_hparams(hparams_file)
+    logging.info(hparams)
+    do_infer(hparams, args)
+  else:
+    hparams = build_hparams(args)
+    logging.info('Train mode')
+    do_train(hparams)
+
 
 
 if __name__ == '__main__':

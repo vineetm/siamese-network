@@ -3,7 +3,7 @@ import tensorflow as tf
 import numpy as np
 import time
 from tensorflow.contrib import rnn
-
+from collections import OrderedDict
 
 class RNNPredictor:
   def __init__(self, hparams, iterator, mode):
@@ -45,12 +45,36 @@ class RNNPredictor:
     #Now, this is a float
     self.loss = tf.reduce_mean(self.batch_loss)
 
-
-
     if mode == ModeKeys.TRAIN:
       self.opt = tf.train.AdamOptimizer(self.hparams.lr)
       #FIXME: Add gradient clipping
       self.train_step = self.opt.minimize(self.loss)
+
+    if mode == ModeKeys.INFER:
+      self.probs = tf.sigmoid(self.logits)
+      self.num_items = tf.shape(self.iterator.sentence)[0]
+      self.cutoff_prob = tf.placeholder(dtype=tf.float32)
+      self.pos_labels = tf.squeeze(tf.where(tf.greater_equal(self.probs, self.cutoff_prob)))
+      self.lookup_indexes = tf.placeholder(tf.int64)
+
+  def lookup_index(self, sess, rev_vocab_table, index):
+    return sess.run(rev_vocab_table.lookup(self.lookup_indexes) , {self.lookup_indexes:index})
+
+
+  #Returns num_true x 2 items, where index=0 represents datum number
+  def get_pos_label_classes(self, infer_sess, rev_vocab_table, min_prob, fw):
+    infer_sess.run(self.iterator.init)
+    while True:
+      try:
+        pos_labels, num_items = infer_sess.run([self.pos_labels, self.num_items], {self.cutoff_prob:min_prob})
+        output_classes = [[] for _ in range(num_items)]
+        for datum_num, label_index in pos_labels:
+          output_classes[datum_num].append(self.lookup_index(infer_sess, rev_vocab_table, label_index).decode('utf-8'))
+        for datum_num in range(num_items):
+          fw.write('%s\n'%' '.join(output_classes[datum_num]))
+      except tf.errors.OutOfRangeError:
+        return
+
 
 
   def train(self, training_session):
