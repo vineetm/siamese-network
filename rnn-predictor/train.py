@@ -57,7 +57,7 @@ def setup_args():
   parser.add_argument('-steps_per_eval', default=1000, type=int, help='Steps per evaluation')
   parser.add_argument('-steps_per_stats', default=200, type=int, help='Steps per stats and model checkpoint')
 
-  parser.add_argument('-dynamic_scaling', default=False, action='store')
+  parser.add_argument('-dynamic_scaling', default=False, action='store_true')
 
   args = parser.parse_args()
 
