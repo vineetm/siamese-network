@@ -15,6 +15,7 @@ def setup_args():
 
   #This code assumes a parallel corpus of sentences and labels
   #It is okay for context to be absent
+  parser.add_argument('-len_max_sentence', default=-1, type=int)
   parser.add_argument('-train_sentences', default=None, help='Train sentences for which vector would be computed')
   parser.add_argument('-train_labels', default=None, help='Train labels file')
   parser.add_argument('-train_context', default=None, help='Additional context')
@@ -98,7 +99,8 @@ def build_hparams(args):
 
                  steps_per_eval = args.steps_per_eval,
                  steps_per_stats= args.steps_per_stats,
-                 dynamic_scaling = args.dynamic_scaling
+                 dynamic_scaling = args.dynamic_scaling,
+                 len_max_sentence = args.len_max_sentence
                  )
 
 
@@ -131,6 +133,12 @@ def do_train(hparams):
   else:
     dynamic_scaling = False
 
+  if 'len_max_sentence' in hparams:
+    len_max_sentence = hparams.len_max_sentence
+  else:
+    len_max_sentence = -1
+
+
   valid_graph = tf.Graph()
   with valid_graph.as_default():
     tf.set_random_seed(hparams.seed)
@@ -140,7 +148,7 @@ def do_train(hparams):
 
     valid_iterator = create_train_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels,
                                              vocab_table_output, hparams.size_vocab_output, hparams.valid_batch_size,
-                                                   hparams.pos_scaling, dynamic_scaling)
+                                                   hparams.pos_scaling, dynamic_scaling, len_max_sentence)
 
     valid_model = RNNPredictor(hparams, valid_iterator, ModeKeys.EVAL)
     valid_sess = tf.Session()
@@ -183,7 +191,7 @@ def do_train(hparams):
 
     train_iterator = create_train_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels,
                                              vocab_table_output, hparams.size_vocab_output, hparams.train_batch_size,
-                                                   hparams.pos_scaling, dynamic_scaling)
+                                                   hparams.pos_scaling, dynamic_scaling, len_max_sentence)
 
     train_model = RNNPredictor(hparams, train_iterator, ModeKeys.TRAIN)
     train_sess = tf.Session()
@@ -260,6 +268,11 @@ def index_to_word_map(vocab_file):
 
 
 def do_infer(hparams, args):
+  if 'len_max_sentence' in hparams:
+    len_max_sentence = hparams.len_max_sentence
+  else:
+    len_max_sentence = -1
+
   infer_graph = tf.Graph()
 
   rev_vocab_table = index_to_word_map(hparams.vocab_output)
@@ -268,7 +281,7 @@ def do_infer(hparams, args):
   with infer_graph.as_default():
     vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
 
-    infer_iterator = create_infer_dataset_iterator(args.infer_sentences, vocab_table_input, args.infer_batch_size)
+    infer_iterator = create_infer_dataset_iterator(args.infer_sentences, vocab_table_input, args.infer_batch_size, len_max_sentence)
 
     infer_model = RNNPredictor(hparams, infer_iterator, ModeKeys.INFER)
     infer_sess = tf.Session()

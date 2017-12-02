@@ -5,7 +5,7 @@ class TrainDataIterator(namedtuple('TrainDataIterator', 'init sentence len_sente
   pass
 
 def create_train_dataset_iterator(sentences_file, vocab_sentences, labels_file, vocab_labels, max_labels, batch_size,
-                                  scaling_factor, dynamic_scaling=False):
+                                  scaling_factor, dynamic_scaling=False, max_len=-1):
   #Get sequence of strings
   sentences_dataset = tf.data.TextLineDataset(sentences_file)
 
@@ -14,6 +14,9 @@ def create_train_dataset_iterator(sentences_file, vocab_sentences, labels_file, 
 
   #Get word index for each word
   sentences_dataset = sentences_dataset.map(lambda words: vocab_sentences.lookup(words))
+
+  if max_len > 0:
+    sentences_dataset = sentences_dataset.map(lambda words: words[-max_len:])
 
   #Get all *on* labels string
   labels_dataset = tf.data.TextLineDataset(labels_file)
@@ -53,7 +56,7 @@ class InferDataIterator(namedtuple('InferDataIterator', 'init sentence len_sente
   pass
 
 
-def create_infer_dataset_iterator(sentences_file, vocab_sentences, batch_size):
+def create_infer_dataset_iterator(sentences_file, vocab_sentences, batch_size, max_len=-1):
   #Get sequence of strings
   sentences_dataset = tf.data.TextLineDataset(sentences_file)
 
@@ -62,6 +65,9 @@ def create_infer_dataset_iterator(sentences_file, vocab_sentences, batch_size):
 
   #Get word index for each word
   sentences_dataset = sentences_dataset.map(lambda words: vocab_sentences.lookup(words))
+
+  if max_len > 0:
+    sentences_dataset = sentences_dataset.map(lambda words: words[-max_len:])
 
   #Sentence is variable length, get its size
   sentences_dataset = sentences_dataset.map(lambda sentence: (sentence, tf.size(sentence)))
