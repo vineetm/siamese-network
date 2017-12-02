@@ -46,7 +46,8 @@ class RNNPredictor:
 
       self.batch_loss = self.batch_loss * self.iterator.weights
       #Now, this is a float
-      self.loss = tf.reduce_mean(self.batch_loss)
+      loss = tf.reduce_sum(self.batch_loss, axis=1)
+      self.loss = tf.reduce_mean(loss / self.iterator.total_weight)
 
     if mode == ModeKeys.TRAIN:
       self.opt = tf.train.AdamOptimizer(self.hparams.lr)

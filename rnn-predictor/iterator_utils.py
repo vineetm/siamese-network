@@ -1,7 +1,7 @@
 from collections import namedtuple
 import tensorflow as tf
 
-class TrainDataIterator(namedtuple('TrainDataIterator', 'init sentence len_sentence labels weights')):
+class TrainDataIterator(namedtuple('TrainDataIterator', 'init sentence len_sentence labels weights total_weight')):
   pass
 
 def create_train_dataset_iterator(sentences_file, vocab_sentences, labels_file, vocab_labels, max_labels, batch_size,
@@ -34,13 +34,16 @@ def create_train_dataset_iterator(sentences_file, vocab_sentences, labels_file, 
   #Sentence is variable length, get its size
   dataset = dataset.map(lambda sentence, labels: (sentence, tf.size(sentence), labels, ((labels * scaling_factor)+1)))
 
+  dataset = dataset.map(lambda sentence, len_sentence, labels, weights: (sentence, len_sentence, labels, weights, tf.reduce_sum(weights)))
+
   #Batching
   dataset = dataset.padded_batch(batch_size, padded_shapes=(tf.TensorShape([None]), tf.TensorShape([]),
-                                                            tf.TensorShape([None]), tf.TensorShape([None])))
+                                                            tf.TensorShape([None]), tf.TensorShape([None]),
+                                                            tf.TensorShape([])))
 
   iterator = dataset.make_initializable_iterator()
-  sentence, len_sentence, labels, weights = iterator.get_next()
-  return TrainDataIterator(iterator.initializer, sentence, len_sentence, labels, weights)
+  sentence, len_sentence, labels, weights, total_weight = iterator.get_next()
+  return TrainDataIterator(iterator.initializer, sentence, len_sentence, labels, weights, total_weight)
 
 
 class InferDataIterator(namedtuple('InferDataIterator', 'init sentence len_sentence')):

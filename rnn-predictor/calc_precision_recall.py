@@ -22,7 +22,7 @@ def main():
 
   for gt, pred in zip(open(args.gt), open(args.preds)):
     gt_topics = set(gt.strip().split())
-    pred_topics = set(gt.strip().split())
+    pred_topics = set(pred.strip().split())
 
     topics_tp = gt_topics.intersection(pred_topics)
     topics_fp = pred_topics - gt_topics
