@@ -47,7 +47,7 @@ def setup_args():
 
   parser.add_argument('-train_batch_size', default=64, type=int)
   parser.add_argument('-valid_batch_size', default=256, type=int)
-  parser.add_argument('-infer_batch_size', default=1, type=int)
+  parser.add_argument('-infer_batch_size', default=256, type=int)
 
   #3. Checkpoint related params
   parser.add_argument('-model_dir', default=None, help='Model directory')
