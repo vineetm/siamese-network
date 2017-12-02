@@ -57,6 +57,8 @@ def setup_args():
   parser.add_argument('-steps_per_eval', default=1000, type=int, help='Steps per evaluation')
   parser.add_argument('-steps_per_stats', default=200, type=int, help='Steps per stats and model checkpoint')
 
+  parser.add_argument('-dynamic_scaling', default=False, action='store')
+
   args = parser.parse_args()
 
   return args
@@ -95,12 +97,13 @@ def build_hparams(args):
                  seed = args.seed,
 
                  steps_per_eval = args.steps_per_eval,
-                 steps_per_stats= args.steps_per_stats
+                 steps_per_stats= args.steps_per_stats,
+                 dynamic_scaling = args.dynamic_scaling
                  )
 
 
-def save_hparams(hparams):
-  hparams_file = os.path.join(hparams.model_dir, "hparams")
+def save_hparams(hparams, dir):
+  hparams_file = os.path.join(dir, "hparams")
   logging.info("Saving hparams to %s" % hparams_file)
   with codecs.getwriter("utf-8")(tf.gfile.GFile(hparams_file, "wb")) as f:
     f.write(hparams.to_json())
@@ -123,17 +126,23 @@ def load_hparams(hparams_file):
 
 def do_train(hparams):
   # Create validation graph, and session
+  if 'dynamic_scaling' in hparams and hparams.dynamic_scaling:
+    dynamic_scaling = True
+  else:
+    dynamic_scaling = False
+
   valid_graph = tf.Graph()
   with valid_graph.as_default():
     tf.set_random_seed(hparams.seed)
     vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
     vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
 
-    train_iterator = create_train_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels,
-                                             vocab_table_output,
-                                             hparams.size_vocab_output, hparams.valid_batch_size, hparams.pos_scaling)
 
-    valid_model = RNNPredictor(hparams, train_iterator, ModeKeys.EVAL)
+    valid_iterator = create_train_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels,
+                                             vocab_table_output, hparams.size_vocab_output, hparams.valid_batch_size,
+                                                   hparams.pos_scaling, dynamic_scaling)
+
+    valid_model = RNNPredictor(hparams, valid_iterator, ModeKeys.EVAL)
     valid_sess = tf.Session()
 
     valid_sess.run(tf.global_variables_initializer())
@@ -149,13 +158,16 @@ def do_train(hparams):
   if not tf.gfile.Exists(hparams.model_dir):
     logging.info('Creating Model dir: %s' % hparams.model_dir)
     tf.gfile.MkDir(hparams.model_dir)
-  save_hparams(hparams)
+  save_hparams(hparams, hparams.model_dir)
 
   train_saver_path = os.path.join(hparams.model_dir, 'tr')
   valid_saver_path = os.path.join(hparams.model_dir, 'best_eval')
   valid_f1_saver_path = os.path.join(hparams.model_dir, 'best_f1')
   tf.gfile.MakeDirs(valid_saver_path)
+  save_hparams(hparams, valid_saver_path)
+
   tf.gfile.MakeDirs(valid_f1_saver_path)
+  save_hparams(hparams, valid_f1_saver_path)
 
   valid_saver_path = os.path.join(valid_saver_path, 'sm')
   valid_f1_saver_path = os.path.join(valid_f1_saver_path, 'sm')
@@ -170,8 +182,8 @@ def do_train(hparams):
     vocab_table_output = lookup_ops.index_table_from_file(hparams.vocab_output, default_value=0)
 
     train_iterator = create_train_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels,
-                                             vocab_table_output,
-                                             hparams.size_vocab_output, hparams.train_batch_size, hparams.pos_scaling)
+                                             vocab_table_output, hparams.size_vocab_output, hparams.train_batch_size,
+                                                   hparams.pos_scaling, dynamic_scaling)
 
     train_model = RNNPredictor(hparams, train_iterator, ModeKeys.TRAIN)
     train_sess = tf.Session()

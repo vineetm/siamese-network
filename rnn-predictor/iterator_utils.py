@@ -5,7 +5,7 @@ class TrainDataIterator(namedtuple('TrainDataIterator', 'init sentence len_sente
   pass
 
 def create_train_dataset_iterator(sentences_file, vocab_sentences, labels_file, vocab_labels, max_labels, batch_size,
-                                  scaling_factor):
+                                  scaling_factor, dynamic_scaling=False):
   #Get sequence of strings
   sentences_dataset = tf.data.TextLineDataset(sentences_file)
 
@@ -32,7 +32,10 @@ def create_train_dataset_iterator(sentences_file, vocab_sentences, labels_file, 
   dataset = tf.data.Dataset.zip((sentences_dataset, labels_dataset))
 
   #Sentence is variable length, get its size
-  dataset = dataset.map(lambda sentence, labels: (sentence, tf.size(sentence), labels, ((labels * scaling_factor)+1)))
+  if dynamic_scaling:
+    dataset = dataset.map(lambda sentence, labels: (sentence, tf.size(sentence), labels, (labels * tf.reduce_sum(labels))+1))
+  else:
+    dataset = dataset.map(lambda sentence, labels: (sentence, tf.size(sentence), labels, ((labels * scaling_factor)+1)))
 
   dataset = dataset.map(lambda sentence, len_sentence, labels, weights: (sentence, len_sentence, labels, weights, tf.reduce_sum(weights)))
 
