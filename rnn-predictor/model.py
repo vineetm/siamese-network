@@ -91,7 +91,8 @@ class RNNPredictor:
       try:
         all_probs.extend(infer_sess.run(self.probs))
         num_batches += 1
-        logging.info('Completed %d'%num_batches)
+        if num_batches % 10 == 0:
+          logging.info('Completed %d'%num_batches)
       except tf.errors.OutOfRangeError:
         return all_probs, num_batches
 
