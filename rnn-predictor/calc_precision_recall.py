@@ -28,7 +28,7 @@ def main():
     topics_fp = pred_topics - gt_topics
     topics_fn = gt_topics - pred_topics
 
-    if len(topics_fp) > 1:
+    if len(topics_tp) >= 1:
       gt_match += 1
 
     tp += len(topics_tp)
@@ -40,6 +40,8 @@ def main():
   pr = tp / (tp + fp)
   re = tp / (tp + fn)
   f1 = 2 * pr * re / (pr + re)
+
+  logging.info('TP: %d FP: %d FN: %d'%(int(tp), int(fp), int(fn)))
   logging.info('F1: %.4f Pr: %.4f Re: %.4f Gt: %d/%d'%(f1, pr, re, gt_match, total))
 
 if __name__ == '__main__':

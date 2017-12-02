@@ -67,9 +67,10 @@ class RNNPredictor:
       self.num_items = tf.shape(self.iterator.sentence)[0]
       self.cutoff_prob = tf.placeholder(dtype=tf.float32, shape=())
       self.pos_labels = tf.squeeze(tf.where(tf.greater_equal(self.probs, self.cutoff_prob)))
+
       self.lookup_indexes = tf.placeholder(tf.int64)
 
-    if ModeKeys.EVAL:
+    if mode == ModeKeys.EVAL:
       with tf.variable_scope('metrics') as scope:
         self.precision = tf.metrics.precision_at_thresholds(labels=self.iterator.labels, predictions=self.probs,
                                                            thresholds=[0.5])
@@ -82,20 +83,35 @@ class RNNPredictor:
   def lookup_index(self, sess, rev_vocab_table, index):
     return sess.run(rev_vocab_table.lookup(self.lookup_indexes) , {self.lookup_indexes:index})
 
+  def get_all_probs(self, infer_sess):
+    infer_sess.run(self.iterator.init)
+    all_probs = []
+    num_batches = 0
+    while True:
+      try:
+        all_probs.extend(infer_sess.run(self.probs))
+        num_batches += 1
+        logging.info('Completed %d'%num_batches)
+      except tf.errors.OutOfRangeError:
+        return all_probs, num_batches
+
 
   #Returns num_true x 2 items, where index=0 represents datum number
-  def get_pos_label_classes(self, infer_sess, rev_vocab_table, min_prob, fw):
+  def old_get_pos_label_classes(self, infer_sess, rev_vocab_table, min_prob, fw):
     infer_sess.run(self.iterator.init)
+    num_batches = 0
     while True:
       try:
         pos_labels, num_items = infer_sess.run([self.pos_labels, self.num_items], {self.cutoff_prob:min_prob})
+        logging.info('Batch %d done'%num_batches)
+        num_batches += 1
         output_classes = [[] for _ in range(num_items)]
         for datum_num, label_index in pos_labels:
           output_classes[datum_num].append(self.lookup_index(infer_sess, rev_vocab_table, label_index).decode('utf-8'))
         for datum_num in range(num_items):
           fw.write('%s\n'%' '.join(output_classes[datum_num]))
       except tf.errors.OutOfRangeError:
-        return
+        return num_batches
 
 
   def train(self, training_session):

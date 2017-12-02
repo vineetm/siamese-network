@@ -47,7 +47,7 @@ def setup_args():
 
   parser.add_argument('-train_batch_size', default=64, type=int)
   parser.add_argument('-valid_batch_size', default=256, type=int)
-  parser.add_argument('-infer_batch_size', default=16, type=int)
+  parser.add_argument('-infer_batch_size', default=1, type=int)
 
   #3. Checkpoint related params
   parser.add_argument('-model_dir', default=None, help='Model directory')
@@ -156,7 +156,9 @@ def do_train(hparams):
   valid_f1_saver_path = os.path.join(hparams.model_dir, 'best_f1')
   tf.gfile.MakeDirs(valid_saver_path)
   tf.gfile.MakeDirs(valid_f1_saver_path)
+
   valid_saver_path = os.path.join(valid_saver_path, 'sm')
+  valid_f1_saver_path = os.path.join(valid_f1_saver_path, 'sm')
 
   summary_writer = tf.summary.FileWriter(os.path.join(hparams.model_dir, 'train_log'))
 
@@ -235,12 +237,24 @@ def do_train(hparams):
       epoch_st_time = time.time()
 
 
+def index_to_word_map(vocab_file):
+  vocab_table = {}
+  index = 0
+  for word in open(vocab_file):
+    word = word.strip()
+    vocab_table[index] = word
+    index +=1
+  return vocab_table
+
+
 def do_infer(hparams, args):
   infer_graph = tf.Graph()
 
+  rev_vocab_table = index_to_word_map(hparams.vocab_output)
+  all_words = np.array([rev_vocab_table[index] for index in range(hparams.size_vocab_output)])
+
   with infer_graph.as_default():
     vocab_table_input = lookup_ops.index_table_from_file(hparams.vocab_input, default_value=0)
-    rev_vocab_table_output = lookup_ops.index_to_string_table_from_file(hparams.vocab_output)
 
     infer_iterator = create_infer_dataset_iterator(args.infer_sentences, vocab_table_input, args.infer_batch_size)
 
@@ -251,7 +265,12 @@ def do_infer(hparams, args):
     infer_model.saver.restore(infer_sess, latest_train_ckpt)
 
     fw = open(args.infer_out, 'w')
-    infer_model.get_pos_label_classes(infer_sess, rev_vocab_table_output, args.prob_cutoff, fw)
+    start_time = time.time()
+    all_probs, num_batches = infer_model.get_all_probs(infer_sess)
+    logging.info('Infer time: %ds Batches: %d datums: %d'%((time.time() - start_time), num_batches, len(all_probs)))
+
+  for datum_prob in all_probs:
+    fw.write('%s\n'%' '.join(all_words[datum_prob > 0.5]))
 
 
 def main():
