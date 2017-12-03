@@ -58,7 +58,7 @@ def setup_args():
   parser.add_argument('-steps_per_eval', default=1000, type=int, help='Steps per evaluation')
   parser.add_argument('-steps_per_stats', default=200, type=int, help='Steps per stats and model checkpoint')
 
-  parser.add_argument('-dynamic_scaling', default=False, action='store_true')
+  parser.add_argument('-sample_negative_labels', default=False, action='store_true')
 
   args = parser.parse_args()
 
@@ -99,8 +99,9 @@ def build_hparams(args):
 
                  steps_per_eval = args.steps_per_eval,
                  steps_per_stats= args.steps_per_stats,
-                 dynamic_scaling = args.dynamic_scaling,
-                 len_max_sentence = args.len_max_sentence
+                 len_max_sentence = args.len_max_sentence,
+
+                 sample_negative_labels = args.sample_negative_labels
                  )
 
 
@@ -127,12 +128,6 @@ def load_hparams(hparams_file):
 
 
 def do_train(hparams):
-  # Create validation graph, and session
-  if 'dynamic_scaling' in hparams and hparams.dynamic_scaling:
-    dynamic_scaling = True
-  else:
-    dynamic_scaling = False
-
   if 'len_max_sentence' in hparams:
     len_max_sentence = hparams.len_max_sentence
   else:
@@ -148,7 +143,7 @@ def do_train(hparams):
 
     valid_iterator = create_train_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels,
                                              vocab_table_output, hparams.size_vocab_output, hparams.valid_batch_size,
-                                                   hparams.pos_scaling, dynamic_scaling, len_max_sentence)
+                                                   hparams.pos_scaling, len_max_sentence)
 
     valid_model = RNNPredictor(hparams, valid_iterator, ModeKeys.EVAL)
     valid_sess = tf.Session()
@@ -191,7 +186,7 @@ def do_train(hparams):
 
     train_iterator = create_train_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels,
                                              vocab_table_output, hparams.size_vocab_output, hparams.train_batch_size,
-                                                   hparams.pos_scaling, dynamic_scaling, len_max_sentence)
+                                                   hparams.pos_scaling, len_max_sentence)
 
     train_model = RNNPredictor(hparams, train_iterator, ModeKeys.TRAIN)
     train_sess = tf.Session()
