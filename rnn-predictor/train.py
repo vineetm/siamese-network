@@ -295,7 +295,7 @@ def do_infer(hparams, args):
     logging.info('Infer time: %ds Batches: %d datums: %d'%((time.time() - start_time), num_batches, len(all_probs)))
 
   for datum_prob in all_probs:
-    fw.write('%s\n'%' '.join(all_words[datum_prob > 0.5]))
+    fw.write('%s\n'%' '.join(all_words[datum_prob > args.prob_cutoff]))
 
 
 def main():
