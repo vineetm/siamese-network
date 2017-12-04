@@ -133,6 +133,10 @@ def do_train(hparams):
   else:
     len_max_sentence = -1
 
+  if 'sample_negative_labels' in hparams and hparams.sample_negative_labels:
+    sample_negative_labels = True
+  else:
+    sample_negative_labels = False
 
   valid_graph = tf.Graph()
   with valid_graph.as_default():
@@ -143,7 +147,7 @@ def do_train(hparams):
 
     valid_iterator = create_train_dataset_iterator(hparams.valid_sentences, vocab_table_input, hparams.valid_labels,
                                              vocab_table_output, hparams.size_vocab_output, hparams.valid_batch_size,
-                                                   hparams.pos_scaling, len_max_sentence)
+                                                   hparams.pos_scaling, len_max_sentence, sample_negative_labels)
 
     valid_model = RNNPredictor(hparams, valid_iterator, ModeKeys.EVAL)
     valid_sess = tf.Session()
@@ -154,8 +158,9 @@ def do_train(hparams):
     init_valid_loss, time_taken, _ = valid_model.eval(valid_sess)
     logging.info('Initial Val_loss: %.4f T:%ds' % (init_valid_loss, time_taken))
 
-    f1, pr, re, _, _, _, f1_time = valid_model.f1_eval(valid_sess)
-    logging.info('Initial F1:%.4f Pr:%.4f Re:%.4f T:%ds'% (f1, pr, re, f1_time))
+    if sample_negative_labels is False:
+      f1, pr, re, _, _, _, f1_time = valid_model.f1_eval(valid_sess)
+      logging.info('Initial F1:%.4f Pr:%.4f Re:%.4f T:%ds'% (f1, pr, re, f1_time))
 
   # Create Model dir if required
   if not tf.gfile.Exists(hparams.model_dir):
@@ -169,11 +174,13 @@ def do_train(hparams):
   tf.gfile.MakeDirs(valid_saver_path)
   save_hparams(hparams, valid_saver_path)
 
-  tf.gfile.MakeDirs(valid_f1_saver_path)
-  save_hparams(hparams, valid_f1_saver_path)
+  if sample_negative_labels is False:
+    tf.gfile.MakeDirs(valid_f1_saver_path)
+    save_hparams(hparams, valid_f1_saver_path)
 
   valid_saver_path = os.path.join(valid_saver_path, 'sm')
-  valid_f1_saver_path = os.path.join(valid_f1_saver_path, 'sm')
+  if sample_negative_labels is False:
+    valid_f1_saver_path = os.path.join(valid_f1_saver_path, 'sm')
 
   summary_writer = tf.summary.FileWriter(os.path.join(hparams.model_dir, 'train_log'))
 
@@ -186,7 +193,7 @@ def do_train(hparams):
 
     train_iterator = create_train_dataset_iterator(hparams.train_sentences, vocab_table_input, hparams.train_labels,
                                              vocab_table_output, hparams.size_vocab_output, hparams.train_batch_size,
-                                                   hparams.pos_scaling, len_max_sentence)
+                                                   hparams.pos_scaling, len_max_sentence, sample_negative_labels)
 
     train_model = RNNPredictor(hparams, train_iterator, ModeKeys.TRAIN)
     train_sess = tf.Session()
@@ -219,21 +226,22 @@ def do_train(hparams):
         valid_model.saver.restore(valid_sess, latest_train_ckpt)
 
         valid_loss, valid_time_taken, eval_summary = valid_model.eval(valid_sess)
-        f1, pr, re, f1_summary, pr_summary, re_summary, f1_time = valid_model.f1_eval(valid_sess)
-
         summary_writer.add_summary(eval_summary, train_step)
-        summary_writer.add_summary(f1_summary, train_step)
-        summary_writer.add_summary(pr_summary, train_step)
-        summary_writer.add_summary(re_summary, train_step)
 
-        if f1 > best_f1_score:
-          valid_model.saver.save(valid_sess, valid_f1_saver_path, train_step)
-          logging.info('Epoch: %d Step: %d F1 Improved: New: %.4f Old: %.4f T:%ds Pr: %.4f Re: %.4f'%
+        if sample_negative_labels is False:
+          f1, pr, re, f1_summary, pr_summary, re_summary, f1_time = valid_model.f1_eval(valid_sess)
+          summary_writer.add_summary(f1_summary, train_step)
+          summary_writer.add_summary(pr_summary, train_step)
+          summary_writer.add_summary(re_summary, train_step)
+
+          if f1 > best_f1_score:
+            valid_model.saver.save(valid_sess, valid_f1_saver_path, train_step)
+            logging.info('Epoch: %d Step: %d F1 Improved: New: %.4f Old: %.4f T:%ds Pr: %.4f Re: %.4f'%
+                         (epoch_num, train_step, f1, best_f1_score, f1_time, pr, re))
+            best_f1_score = f1
+          else:
+            logging.info('Epoch: %d Step: %d F1 Worse: New: %.4f Old: %.4f T:%ds Pr: %.4f Re: %.4f' %
                        (epoch_num, train_step, f1, best_f1_score, f1_time, pr, re))
-          best_f1_score = f1
-        else:
-          logging.info('Epoch: %d Step: %d F1 Worse: New: %.4f Old: %.4f T:%ds Pr: %.4f Re: %.4f' %
-                     (epoch_num, train_step, f1, best_f1_score, f1_time, pr, re))
 
         if valid_loss < best_valid_loss:
           valid_model.saver.save(valid_sess, valid_saver_path, train_step)

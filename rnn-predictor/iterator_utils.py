@@ -5,7 +5,7 @@ class TrainDataIterator(namedtuple('TrainDataIterator', 'init sentence len_sente
   pass
 
 def create_train_dataset_iterator(sentences_file, vocab_sentences, labels_file, vocab_labels, max_labels, batch_size,
-                                  scaling_factor, max_len=-1):
+                                  scaling_factor, max_len=-1, sample_negative_labels=False):
   #Get sequence of strings
   sentences_dataset = tf.data.TextLineDataset(sentences_file)
 
@@ -34,11 +34,15 @@ def create_train_dataset_iterator(sentences_file, vocab_sentences, labels_file, 
   #Combine the sentences and labels dataset
   dataset = tf.data.Dataset.zip((sentences_dataset, labels_dataset))
 
-  #Sentence is variable length, get its size
-  dataset = dataset.map(lambda sentence, labels: (sentence, tf.size(sentence), labels, ((labels * scaling_factor)+1)))
+  #Add a scaling factor, and normalize
+  if sample_negative_labels is False:
+    dataset = dataset.map(lambda sentence, labels: (sentence, tf.size(sentence), labels, ((labels * scaling_factor)+1)))
+  else:
+    #Add equal number of negative example
+    dataset = dataset.map(lambda sentence, labels: (sentence, tf.size(sentence), labels, tf.add(labels, tf.random_shuffle(labels))))
 
-  dataset = dataset.map(lambda sentence, len_sentence, labels, weights: (sentence, len_sentence, labels, weights, tf.reduce_sum(weights)))
-
+  dataset = dataset.map(lambda sentence, len_sentence, labels, weights: (sentence, len_sentence, labels, weights,
+                                                                         tf.reduce_sum(weights)))
   #Batching
   dataset = dataset.padded_batch(batch_size, padded_shapes=(tf.TensorShape([None]), tf.TensorShape([]),
                                                             tf.TensorShape([None]), tf.TensorShape([None]),
