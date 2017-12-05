@@ -13,10 +13,9 @@ class SiameseModel:
     #Mode specifies Train, Eval or Infer
     self.mode = mode
 
-    self.V = hparams.vocab_size
+    self.V = hparams.size_vocab
 
     self.d = hparams.d
-    self.num_units = hparams.num_units
     self.iterator = iterator
 
     self.W = tf.get_variable('embeddings', shape=[self.V, self.d])
@@ -25,55 +24,28 @@ class SiameseModel:
     self.txt1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt1, name='txt1v')
     self.txt2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt2, name='txt2v')
 
-
     #Make default forget gate bias as 2.0, as indicated in paper...
     if 'forget_bias' in hparams:
-      rnn_cell_wd = rnn.BasicLSTMCell(self.num_units, forget_bias=hparams.forget_bias)
+      rnn_cell = rnn.BasicLSTMCell(self.d, forget_bias=hparams.forget_bias)
     else:
-      rnn_cell_wd = rnn.BasicLSTMCell(self.num_units, forget_bias=2.0)
+      rnn_cell = rnn.BasicLSTMCell(self.d, forget_bias=2.0)
 
     # Dropout is only applied at train. Not required at test as the inputs are scaled accordingly
     if mode == ModeKeys.TRAIN:
-      rnn_cell = rnn.DropoutWrapper(rnn_cell_wd, input_keep_prob=(1 - hparams.dropout))
-
-      logging.info('Dropout: %.2f'%hparams.dropout)
-    else:
-      rnn_cell = rnn_cell_wd
+      rnn_cell = rnn.DropoutWrapper(rnn_cell, input_keep_prob=(1 - hparams.dropout))
 
     with tf.variable_scope('rnn'):
       _, state_txt1 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors, sequence_length=self.iterator.len_txt1,
                                          dtype=tf.float32)
-
-    #This is batch_size x num_units
+    #This is batch_size x d
     self.vec_txt1 = state_txt1.h
 
-    if 'use_context' in hparams and hparams.use_context:
-      logging.info('Using Separate ctx vector')
-      self.context_vectors = tf.nn.embedding_lookup(self.W, self.iterator.context, name='ctxv')
-
-      #RNN to compute ctx vector
-      with tf.variable_scope('rnn', reuse=True):
-        _, state_ctx = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors, sequence_length=self.iterator.len_txt1, dtype=tf.float32)
-      vec_ctx = state_ctx.h
-
-      #RNN to combine vec_txt1 and vec_ctx
-      rnn_cell_level1 = rnn.BasicRNNCell(self.num_units)
-      with tf.variable_scope('rnn_level1'):
-        _, level1  = tf.nn.dynamic_rnn(cell=rnn_cell_level1, inputs=tf.stack([vec_ctx, self.vec_txt1], axis=1),
-                                sequence_length=tf.tile([2], [tf.size(self.iterator.len_txt1)]), dtype=tf.float32)
-
-      vec_txt1 = level1
-      self.vec_txt1 = vec_txt1
-
     with tf.variable_scope('rnn', reuse=True):
-      outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors,
-                                           sequence_length=self.iterator.len_txt2, dtype=tf.float32)
-
+      outputs_txt2, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt2_vectors, sequence_length=self.iterator.len_txt2,
+                                                   dtype=tf.float32)
     self.vec_txt2 = state_txt2.h
-    self.M = tf.Variable(tf.eye(self.num_units), name='M')
-
+    self.M = tf.Variable(tf.eye(self.d), name='M')
     self.logits = tf.reduce_sum(tf.multiply(self.vec_txt1, tf.matmul(self.vec_txt2, self.M)), axis=1)
-
     self.saver = tf.train.Saver(tf.global_variables())
 
     if self.mode == ModeKeys.TRAIN or self.mode == ModeKeys.EVAL:
