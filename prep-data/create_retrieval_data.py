@@ -55,21 +55,21 @@ def main():
 
   datum = 0
 
-  for txt1, txt2 in zip(open(args.input_txt1), open(args.txt2)):
+  for txt1, txt2 in zip(open(args.input_txt1), open(args.input_txt2)):
     fw_txt1.write(txt1)
     fw_txt2.write(txt2)
-    fw_map.write('%d,%d' % (datum, 0))
+    fw_map.write('%d,%d\n' % (datum, 0))
     rvs = get_k_random_values(args.k, txt2, candidates)
     for index, cnum in enumerate(rvs):
       fw_txt1.write(txt1)
       fw_txt2.write('%s\n'%candidates[cnum])
-      fw_map.write('%d,%d'%(datum, index+1))
+      fw_map.write('%d,%d\n'%(datum, index+1))
 
     datum += 1
-    if datum % 10 == 0:
-      logging.info('Processed: %d'%datum)
+    logging.info('Processed: %d'%datum)
 
 
 if __name__ == '__main__':
+  logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
   main()
 
