@@ -28,3 +28,14 @@ MIN_FREQ=50
 python create_vocab.py -txt1 $TRAIN_TXT1 -txt2 $TRAIN_TXT2 -min_freq $MIN_FREQ -vocab $VOCAB -all_vocab $ALL_VOCAB
 echo "prep vocab done"
 
+#Separate valid data with GT. Required later to create 1 in K data for R@k task
+VALID_CSV="${DATA_DIR}/valid.csv"
+PVALID_TXT1="${OUT_DIR}/pvalid.txt1"
+PVALID_TXT2="${OUT_DIR}/pvalid.txt2"
+python prep_data.py -only_positive -input_csv $VALID_CSV -out_txt1 $PVALID_TXT1 -out_txt2 $PVALID_TXT2
+
+#Separate test data with GT. Required later to create 1 in K data for R@k task
+TEST_CSV="${DATA_DIR}/test.csv"
+PTEST_TXT1="${OUT_DIR}/ptest.txt1"
+PTEST_TXT2="${OUT_DIR}/ptest.txt2"
+python prep_data.py -only_positive -input_csv $TEST_CSV -out_txt1 $PTEST_TXT1 -out_txt2 $PTEST_TXT2

@@ -16,6 +16,7 @@ def setup_args():
   parser = argparse.ArgumentParser()
   parser.add_argument('-train', default=False, action='store_true')
   parser.add_argument('-siamese_valid', default=False, action='store_true')
+  parser.add_argument('-only_positive', default=False, action='store_true')
   parser.add_argument('-preserve_case', default=False, action='store_true')
   parser.add_argument('-input_csv', default=None)
   parser.add_argument('-out_txt1', default=None)
@@ -80,6 +81,22 @@ def process_siamese_valid_data(input_csv, out_txt1, out_txt2, out_labels):
   logging.info('Input: %s Done Wrote %d rows'%(input_csv, num_rows_written))
 
 
+#Write only GT data
+def process_positive_data(input_csv, out_txt1, out_txt2):
+  fw_txt1 = open(out_txt1, 'w')
+  fw_txt2 = open(out_txt2, 'w')
+
+  with open(input_csv) as fr:
+    reader = csv.reader(fr)
+    # Skip header
+    next(reader, None)
+
+    for row in reader:
+      assert len(row) == NUM_COLS_TEST
+      fw_txt1.write('%s\n' % row[0].lower().strip())
+      fw_txt2.write('%s\n' % row[1].lower().strip())
+
+
 def main():
   args = setup_args()
   logging.info(args)
@@ -89,7 +106,8 @@ def main():
     process_training_data(args.input_csv, args.out_txt1, args.out_txt2, args.out_labels)
   elif args.siamese_valid:
     process_siamese_valid_data(args.input_csv, args.out_txt1, args.out_txt2, args.out_labels)
-
+  elif args.only_positive:
+    process_positive_data(args.input_csv, args.out_txt1, args.out_txt2)
 
 if __name__ == '__main__':
   logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
