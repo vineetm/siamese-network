@@ -4,6 +4,7 @@ Stores in a pkl file
 '''
 import argparse, codecs, json, os
 import tensorflow as tf
+import pickle as pkl
 from tensorflow.python.ops import lookup_ops
 from tensorflow.contrib import rnn
 from collections import namedtuple
@@ -20,7 +21,7 @@ def setup_args():
   parser.add_argument('-input_sentences', help='Input sentences file')
   parser.add_argument('-output_vectors', help='RNN vector numpy array for each sentence')
   parser.add_argument('-max_len', default=-1, type=int)
-  parser.add_argument('-batch_size', default=256)
+  parser.add_argument('-batch_size', default=256, type=int)
 
   args = parser.parse_args()
   return args
@@ -65,11 +66,16 @@ class RNNVectorModel:
 
   def compute_rnn_vectors(self, sess):
     sess.run(self.iterator.init)
-    try:
-      rnn_vectors = sess.run(self.vec_txt1)
-      logging.info('Num %d '%len(rnn_vectors))
-    except tf.errors.OutOfRangeError:
-      return
+    num_batches = 0
+    all_vectors = []
+    while True:
+      try:
+        rnn_vectors = sess.run(self.vec_txt1)
+        all_vectors.extend(rnn_vectors)
+        num_batches += 1
+        logging.info('Batch: %d Total: %d'%(num_batches, len(all_vectors)))
+      except tf.errors.OutOfRangeError:
+        return all_vectors
 
 
 class BatchedDatum(namedtuple('BatchedDatum', 'txt len_txt init')):
@@ -99,6 +105,7 @@ def main():
   hparams = load_hparams(hparams_file)
   logging.info(hparams)
 
+
   vocab_table = lookup_ops.index_table_from_file(hparams.vocab, default_value=0)
   iterator = create_single_sentence_iterator(args.input_sentences, vocab_table, args.batch_size, args.max_len)
   model = RNNVectorModel(hparams, iterator)
@@ -108,7 +115,10 @@ def main():
 
   latest_ckpt = tf.train.latest_checkpoint(os.path.join(args.model_dir, args.sub_dir))
   model.saver.restore(sess, latest_ckpt)
-  model.compute_rnn_vectors(sess)
+  rnn_vectors = model.compute_rnn_vectors(sess)
+  logging.info('Num Vectors: %d'%len(rnn_vectors))
+  with  open(args.output_vectors, 'wb') as fw:
+    pkl.dump(rnn_vectors, fw)
 
 
 if __name__ == '__main__':
