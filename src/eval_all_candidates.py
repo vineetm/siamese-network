@@ -10,6 +10,7 @@ from tensorflow.contrib import rnn
 from collections import namedtuple
 from utils import load_hparams
 from tensorflow.python.ops import lookup_ops
+import pickle as pkl
 
 logging = tf.logging
 logging.set_verbosity(logging.INFO)
@@ -30,6 +31,9 @@ def setup_args():
 
   parser.add_argument('-max_len', default=160, type=int,
                       help='Max len of input sentence')
+
+  parser.add_argument('-scores_pkl')
+
 
   args = parser.parse_args()
   return args
@@ -114,10 +118,12 @@ class EvalModel:
       self.candidate_vectors = tf.nn.embedding_lookup(self.WC, self.iterator.indexes)
 
       #Concatenate bs x 1 x d with bs x NC x d; Result bs x NC+1 x d
-      self.gt_with_candidate_vectors = tf.concat([tf.reshape(self.vec_txt2, [tf.shape(self.vec_txt2)[0], 1, -1]),
+      self.gt_with_candidate_vectors = tf.concat([tf.reshape(self.vec_txt2, [-1, 1, self.hparams.d]),
                                                   self.candidate_vectors], 1)
-      self.scores = tf.matmul(tf.reshape(tf.matmul(self.vec_txt1, M), [tf.shape(self.vec_txt1)[0], 1, -1]),
+      scores = tf.matmul(tf.reshape(tf.matmul(self.vec_txt1, M), [-1, 1, self.hparams.d]),
                               tf.matrix_transpose(self.gt_with_candidate_vectors))
+
+      self.scores = tf.reshape(scores, [tf.shape(self.vec_txt1)[0], -1])
     else:
       self.saver = tf.train.Saver(tf.global_variables())
 
@@ -199,8 +205,10 @@ def main():
     model.saver.restore(sess, latest_ckpt)
     all_scores, time_taken = model.compute_scores(sess)
 
-  logging.info('Shape:%s'%(all_scores[0].shape))
   logging.info('Num scores: %d Time: %ds'%(len(all_scores), time_taken))
+  with open(args.scores_pkl, 'wb') as fw:
+    pkl.dump(all_scores, fw)
+
 
 
 if __name__ == '__main__':
