@@ -77,6 +77,20 @@ class EvalModel:
         return all_vectors, time.time() - start_time
 
 
+def get_candidate_vectors(vocab_table, args, hparams):
+  # Create candidates iterator
+  candidates_iterator = create_single_file_iterator(vocab_table, args.candidates, args.candidate_batch_size)
+  model = EvalModel(hparams, candidates_iterator)
+  with tf.Session() as sess:
+    sess.run(tf.tables_initializer())
+    latest_ckpt = tf.train.latest_checkpoint(os.path.join(args.model_dir, args.best_model_dir))
+    model.saver.restore(sess, latest_ckpt)
+    candidate_vectors, time_taken = model.compute_txt1_vectors(sess)
+  logging.info('Computed %d Candidate vectors: Time: %ds'%(len(candidate_vectors), time_taken))
+  del model
+  return candidate_vectors
+
+
 def main():
   args = setup_args()
   logging.info(args)
@@ -87,18 +101,9 @@ def main():
 
   #Let us create vocab table next
   vocab_table = lookup_ops.index_table_from_file(hparams.vocab, default_value=0)
+  candidate_vectors = get_candidate_vectors(vocab_table, args, hparams)
 
-  #Create candidates iterator
-  candidates_iterator = create_single_file_iterator(vocab_table, args.candidates, args.candidate_batch_size)
-  model = EvalModel(hparams, candidates_iterator)
 
-  with tf.Session() as sess:
-    sess.run(tf.tables_initializer())
-    latest_ckpt = tf.train.latest_checkpoint(os.path.join(args.model_dir, args.best_model_dir))
-    model.saver.restore(sess, latest_ckpt)
-    candidate_vectors, time_taken = model.compute_txt1_vectors(sess)
-  logging.info('Computed %d Candidate vectors: Time: %ds'%(len(candidate_vectors), time_taken))
-  del model
 
 
 if __name__ == '__main__':
