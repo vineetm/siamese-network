@@ -94,22 +94,23 @@ class EvalModel:
     #To compute RNN vectors, we need W and rnn_cell and dynamic_rnn
     self.W = tf.get_variable('embeddings', shape=[self.hparams.size_vocab, self.hparams.d])
 
-    self.txt1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt1)
+    txt1_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt1)
 
     rnn_cell = rnn.BasicLSTMCell(self.hparams.d, self.hparams.forget_bias)
     with tf.variable_scope('rnn'):
-      _, state_txt1 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors, sequence_length=self.iterator.len_txt1,
+      _, state_txt1 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=txt1_vectors, sequence_length=self.iterator.len_txt1,
                                         dtype=tf.float32)
-    self.vec_txt1 = state_txt1.h
+    vec_txt1 = state_txt1.h
+    self.vec_txt1 = vec_txt1
 
     if cv is not None:
-      M = tf.Variable(tf.eye(self.hparams.d), name='M')
-
+      self.M = tf.Variable(tf.eye(self.hparams.d), name='M')
+      txt2_vectors = tf.nn.embedding_lookup(self.W, self.iterator.txt2)
       with tf.variable_scope('rnn', reuse=True):
-        _, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=self.txt1_vectors,
-                                          sequence_length=self.iterator.len_txt1,
+        _, state_txt2 = tf.nn.dynamic_rnn(cell=rnn_cell, inputs=txt2_vectors,
+                                          sequence_length=self.iterator.len_txt2,
                                           dtype=tf.float32)
-      self.vec_txt2 = state_txt2.h
+      vec_txt2 = state_txt2.h
       self.saver = tf.train.Saver(tf.global_variables())
 
       self.WC = tf.get_variable('candidate_vectors', shape=[cv.shape[0], cv.shape[1]])
@@ -118,12 +119,12 @@ class EvalModel:
       self.candidate_vectors = tf.nn.embedding_lookup(self.WC, self.iterator.indexes)
 
       #Concatenate bs x 1 x d with bs x NC x d; Result bs x NC+1 x d
-      self.gt_with_candidate_vectors = tf.concat([tf.reshape(self.vec_txt2, [-1, 1, self.hparams.d]),
+      self.gt_with_candidate_vectors = tf.concat([tf.reshape(vec_txt2, [-1, 1, self.hparams.d]),
                                                   self.candidate_vectors], 1)
-      scores = tf.matmul(tf.reshape(tf.matmul(self.vec_txt1, M), [-1, 1, self.hparams.d]),
+      scores = tf.matmul(tf.reshape(tf.matmul(vec_txt1, self.M), [-1, 1, self.hparams.d]),
                               tf.matrix_transpose(self.gt_with_candidate_vectors))
 
-      self.scores = tf.reshape(scores, [tf.shape(self.vec_txt1)[0], -1])
+      self.scores = tf.reshape(scores, [tf.shape(vec_txt1)[0], -1])
     else:
       self.saver = tf.train.Saver(tf.global_variables())
 
