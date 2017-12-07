@@ -12,6 +12,7 @@ from utils import load_hparams
 from tensorflow.python.ops import lookup_ops
 import pickle as pkl
 
+from calculate_retrieval_metrics import get_retrieval_metrics
 logging = tf.logging
 logging.set_verbosity(logging.INFO)
 
@@ -33,6 +34,7 @@ def setup_args():
                       help='Max len of input sentence')
 
   parser.add_argument('-scores_pkl')
+  parser.add_argument('-out_metrics')
 
 
   args = parser.parse_args()
@@ -210,7 +212,7 @@ def main():
   with open(args.scores_pkl, 'wb') as fw:
     pkl.dump(all_scores, fw)
 
-
+  get_retrieval_metrics(args.out_metrics, all_scores)
 
 if __name__ == '__main__':
   main()
