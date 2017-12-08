@@ -1,8 +1,12 @@
-import argparse, logging
+import argparse
 import pickle as pkl
 import numpy as np
+import tensorflow as tf
 
-from eval_all_candidates import convert_to_numpy_array
+logging = tf.logging
+logging.set_verbosity(logging.INFO)
+
+from utils import convert_to_numpy_array
 
 NC = [10, 100, 500, 1000, 5000]
 
@@ -31,6 +35,7 @@ def get_retrieval_metrics(out_metrics, list_scores):
     logging.info('(1 in %4d): R@1=%.4f R@2:%.4f R@5: %.4f MRR: %.4f'%(nc, r1, r2, r5, mrr))
     fw.write('(1 in %4d): R@1=%.4f R@2:%.4f R@5: %.4f MRR: %.4f\n'%(nc, r1, r2, r5, mrr))
 
+
 def main():
   args = setup_args()
   logging.info(args)
@@ -43,5 +48,4 @@ def main():
 
 
 if __name__ == '__main__':
-  logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
   main()

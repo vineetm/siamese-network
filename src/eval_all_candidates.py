@@ -8,7 +8,7 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.contrib import rnn
 from collections import namedtuple
-from utils import load_hparams
+from utils import load_hparams, convert_to_numpy_array
 from tensorflow.python.ops import lookup_ops
 import pickle as pkl
 
@@ -172,12 +172,6 @@ def get_candidate_vectors(vocab_table, args, hparams):
   logging.info('Computed %d Candidate vectors: Time: %ds'%(len(candidate_vectors), time_taken))
   del model
   return candidate_vectors
-
-def convert_to_numpy_array(list_vectors):
-  cv = np.zeros((len(list_vectors), len(list_vectors[0])))
-  for index in range(len(list_vectors)):
-    cv[index, :] = list_vectors[index]
-  return cv
 
 
 def main():
