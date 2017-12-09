@@ -11,8 +11,6 @@ def setup_args():
   parser.add_argument('-stopw')
   parser.add_argument('-merge_th', default=0.7, type=float, help='Merge clusters threshold')
   parser.add_argument('-cluster_out')
-  parser.add_argument('-cluster_pkl')
-  parser.add_argument('-word2cluster_pkl')
   args = parser.parse_args()
   return args
 
@@ -63,7 +61,7 @@ def main():
     #We did not find any word close enough to this, skip it!
     if len(most_similar_words) == 0:
       continue
-      
+
     #See if any of these words have been assigned a cluster
     assigned_cluster_id, to_merge_cluster_ids = find_assigned_cluster(most_similar_words, word2cluster)
 
@@ -94,13 +92,6 @@ def main():
   with open(args.cluster_out, 'w') as fw:
     for cid in word_clusters:
       fw.write('%s\n'%' '.join(list(word_clusters[cid])))
-
-  with open(args.cluster_pkl, 'wb') as fw:
-    pkl.dump(word_clusters, fw)
-
-  with open(args.word2cluster_pkl, 'wb') as fw:
-    pkl.dump(word2cluster, fw)
-
 
 if __name__ == '__main__':
   logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
