@@ -1,27 +1,22 @@
 We work with [Ubuntu Dialogue Corpus v2](https://github.com/rkadlec/ubuntu-ranking-dataset-creator)
   * We use the latest repository (Last Commit: 18 Oct 2017)
   * We only `tokenize` the text.
-  * We further create a larger retrieval dataset with (50,)
   * Detailed Steps:
-    ```
-    git clone git@github.com:rkadlec/ubuntu-ranking-dataset-creator.git
 
-    cd ubuntu-ranking-dataset-creator/src
-    ```
+    * Clone repository
+      ```
+      git clone git@github.com:rkadlec/ubuntu-ranking-dataset-creator.git
+      ```
 
-    ```bash
-    #!/usr/bin/env bash
+    * Install dependencies. We prefer creating a conda environment, but you can select your favorite method
+      ```bash
+      conda create -n ubuntu python=2.7
+      pip install -r requirements.text
+      cd ubuntu-ranking-dataset-creator/src
+      ```
 
-    # download punkt first
-    python download_punkt.py
+   * Finally, generate data. We only `tokenize the text`
 
-    python create_ubuntu_dataset.py -t --output 'train.csv' 'train'
-
-    for n in 9 49 99 499 999 4999 9999 19999 49999; do
-    python create_ubuntu_dataset.py -t --output "test.${n}.csv" 'test' -n $n
-    echo "$k test done"
-
-    python create_ubuntu_dataset.py -t --output "valid.${n}.csv" 'valid' -n $n
-    echo "$k valid done"
-    done
-    ```
+      ```bash
+      ./generate.sh -t
+      ```

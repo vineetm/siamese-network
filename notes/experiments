@@ -1,0 +1,30 @@
+Try these combinations while Training
+
+#### Exp1
+Experiments with Vocab=22k
+(Words appearing atleast 50 times)
+
+bs=64, 128
+dr=0.0, 0.2, 0.4, 0.6, 0.8
+lr=0.00036, 0.00057, 0.001
+fb=1.0, 2.0
+
+* Overfitting:
+  * bs=128/64, dr=0.0 forget_bias=2.0, 1.0
+    * Valid Loss: 0.4612 (14K; 2.0), 0.4637 (21K; 1.0)
+
+  * bs=128/64, dr=0.2 forget_bias=2.0, 1.0
+    * Valid Loss: 0.4508 (48K)
+
+  * bs=128/64, dr=0.4 forget_bias=2.0, 1.0
+      * Valid Loss: 0.4455 (59K)
+
+* Still Learning:
+  * bs=128/64; dr=0.6; fb=2.0/1.0
+    * Valid Loss: 0.4329 (280K) (bs=64; fb=1.0)
+
+  * bs=128/64; dr=0.8; fb=2.0/1.0
+    * Valid Loss: 0.4155 (265K) (bs=128; fb=2.0)
+
+#### Exp2
+(Experiments with V=10K)

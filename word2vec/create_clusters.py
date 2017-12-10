@@ -35,7 +35,7 @@ def find_assigned_cluster(words, word2cluster):
   return cluster_id, to_merge_cluster_ids
 
 
-def main():
+def oldmain():
   args = setup_args()
   logging.info(args)
 
@@ -92,6 +92,48 @@ def main():
   with open(args.cluster_out, 'w') as fw:
     for cid in word_clusters:
       fw.write('%s\n'%' '.join(list(word_clusters[cid])))
+
+def main():
+  args = setup_args()
+  logging.info(args)
+
+  stopw = read_stopwords(args.stopw)
+  logging.info('#Stopwords: %d'%len(stopw))
+
+  model = Word2Vec.load(args.word2vec)
+
+
+  word_clusters = []
+  covered_words = set()
+  for word_index in range(len(model.wv.vocab)):
+    word = model.wv.index2word[word_index]
+
+    #This already belongs to a cluster, continue
+    if word in covered_words:
+      continue
+
+    #Ignore stopwords
+    if word in stopw:
+      continue
+
+    #Find words most similar to word
+    most_similar_words = [w for (w, s) in model.most_similar(word, topn=100) if w not in stopw and s > 0.7]
+
+    #We did not find any word close enough to this, skip it!
+    if len(most_similar_words) == 0:
+      continue
+
+    most_similar_words.append(word)
+    word_clusters.append(most_similar_words)
+    for w in most_similar_words:
+      covered_words.add(w)
+
+    if word_index %1000 == 0:
+      logging.info('Processed word:%s[%d] #Clusters:%d'%(word, word_index, len(word_clusters)))
+
+  with open(args.cluster_out, 'w') as fw:
+    for word_cluster in word_clusters:
+      fw.write('%s\n'%' '.join(word_cluster))
 
 if __name__ == '__main__':
   logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)

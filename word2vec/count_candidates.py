@@ -1,5 +1,5 @@
 import argparse, logging
-import pickle as pkl
+from collections import Counter
 
 def setup_args():
   parser = argparse.ArgumentParser()
@@ -7,6 +7,7 @@ def setup_args():
   parser.add_argument('-cluster_out')
   parser.add_argument('-candidates_map')
   parser.add_argument('-candidates_missed')
+  parser.add_argument('-cluster_counts')
   args = parser.parse_args()
   return args
 
@@ -42,6 +43,7 @@ def main():
   fw_missed = open(args.candidates_missed, 'w')
   fw = open(args.candidates_map, 'w')
 
+  clid_counts = []
   for candidate in open(args.candidates):
     #Find words that are assigned any cluster
     words = set(candidate.split()).intersection(word2cluster.keys())
@@ -51,7 +53,8 @@ def main():
       fw_missed.write(candidate)
       fw.write('NONE\n')
     else:
-      fw.write('%s\n'%[str(i) for i in clids])
+      clid_counts.extend(list(clids))
+      fw.write('%s\n'%' '.join([str(i) for i in clids]))
 
     for clid in clids:
       cluster_map[clid].append(candidate_index)
@@ -59,6 +62,11 @@ def main():
     candidate_index += 1
     if candidate_index % 10000 == 0:
       logging.info('Processed Candidate: %d'%candidate_index)
+
+  counter = Counter(clid_counts)
+  with open(args.cluster_counts, 'w') as fw:
+    for clid, count in counter.most_common():
+      fw.write('%d %d\n'%(clid, count))
 
 
 if __name__ == '__main__':

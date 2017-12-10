@@ -107,3 +107,4 @@ ENV/
 data/
 src/out
 raw-data/
+notebooks/
