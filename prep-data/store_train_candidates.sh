@@ -1,13 +1,13 @@
 #!/bin/sh
-OUT_DIR=$1
+DATA_DIR=$1
 
 #These are the candidates
-TRAIN_TXT2="${OUT_DIR}/train.txt2"
+TRAIN_TXT2="${DATA_DIR}/train.txt2"
 
 #We need labels as we only pick (flag=1) as a candidate
-TRAIN_LABELS="${OUT_DIR}/train.labels"
+TRAIN_LABELS="${DATA_DIR}/train.labels"
 
-OUT_CANDIDATES="${OUT_DIR}/candidates.txt"
-OUT_CANDIDATES_PKL="${OUT_DIR}/candidates.txt.pkl"
+#This is where we write all the candidates
+OUT_CANDIDATES="${DATA_DIR}/candidates.txt"
 
-python store_train_candidates.py -all_candidates $TRAIN_TXT2 -all_labels $TRAIN_LABELS -out_candidates_txt $OUT_CANDIDATES -out_candidates_pkl $OUT_CANDIDATES_PKL
+python store_train_candidates.py -all_candidates $TRAIN_TXT2 -all_labels $TRAIN_LABELS -out_candidates $OUT_CANDIDATES
