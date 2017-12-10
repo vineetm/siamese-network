@@ -1,0 +1,40 @@
+* **Goal**: Given a conversation context, select response from a *set* of candidates.
+
+* **Candidate** Set: All *positive* examples in Ubuntu corpus v2
+    ```
+    prep_data/store_train_candidates.sh $DATA_DIR
+    ```
+  * Unique: 435,953 / 499,873
+
+* **Bin Candidates**
+  * Train a word2vec to find *almost* similar words
+  ```
+  model = Word2Vec(iterator, min_count=10, size=128)
+  ```
+  where  `iterator` goes through `train.txt1`, `train.txt2` and only selects positive label pairs
+
+    ```
+    ./train_word2vec.sh $DATA_DIR
+    ```
+
+  * Next cluster words which have have high cosine similarity `sim > 0.7`
+    ```
+    ./create_clusters.sh $DATA_DIR
+
+    wc -l word_clusters.out
+    6707 word_clusters.out
+    ```
+    Clusters *exclude* stopwords, see `word2vec/create_stopwords.sh`
+
+  * Bins are created based on word-clusters in candidates.
+
+    ```
+    prep-data/bin_candidates.sh $DATA_DIR
+    ```
+
+    Bins: 310,288 (Candidates: 435,953)
+
+* Find a representative candidate from each bin
+
+  * Pick a candidate which has maximum words from Top 10k words in corpus
+  * In case there are multiple options, select a random candidate.
