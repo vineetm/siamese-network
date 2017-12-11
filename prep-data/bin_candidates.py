@@ -1,7 +1,6 @@
 import argparse, logging, numpy as np
 
-#Bin for candidates that do not lie in any word cluster bin, chiefly stopwords
-SW_BIN = 'SW'
+from commons import SW_BIN
 
 def setup_args():
   parser = argparse.ArgumentParser()
