@@ -1,6 +1,7 @@
 import argparse, logging, numpy as np
 
 from commons import SW_BIN
+from commons import create_cluster_map, get_cluster_words
 
 def setup_args():
   parser = argparse.ArgumentParser()
@@ -11,18 +12,6 @@ def setup_args():
 
   args = parser.parse_args()
   return args
-
-
-def create_cluster_map(cl_file):
-  clid = 0
-  word2cluster = {}
-  for line in open(cl_file):
-    words = line.split()
-    for word in words:
-      if word not in word2cluster:
-        word2cluster[word] = clid
-    clid += 1
-  return word2cluster
 
 
 def main():
@@ -37,7 +26,7 @@ def main():
   bins = {}
   index = 0
   for candidate in open(args.candidates):
-    cluster_words = set(candidate.split()).intersection(word2cluster.keys())
+    cluster_words = get_cluster_words(candidate, word2cluster)
     if len(cluster_words) == 0:
       bin = SW_BIN
     else:

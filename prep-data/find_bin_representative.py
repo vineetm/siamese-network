@@ -2,6 +2,8 @@ import argparse, logging
 import numpy as np
 
 from commons import SW_BIN, EOU, EOT
+from commons import read_all_candidates
+
 
 def setup_args():
   parser = argparse.ArgumentParser()
@@ -17,11 +19,6 @@ def setup_args():
   args = parser.parse_args()
   return args
 
-
-def read_all_candidates(file_name):
-  with open(file_name) as fr:
-    candidates = fr.readlines()
-  return candidates
 
 
 def read_vocab(file_name):
