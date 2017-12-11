@@ -19,7 +19,7 @@ def create_cluster_map(cl_file):
       if word not in word2cluster:
         word2cluster[word] = clid
     clid += 1
-  return word2cluster
+  return word2cluster, clid
 
 
 def get_cluster_words(sentence, word2cluster):
