@@ -42,7 +42,8 @@ def main():
     if len(cluster_words) == 0:
       bin = SW_BIN
     else:
-      sorted_clids = np.sort([word2cluster[word] for word in cluster_words])
+      #We want unique clusters
+      sorted_clids = np.sort(list(set([word2cluster[word] for word in cluster_words])))
       bin = '%s'%' '.join([str(clid) for clid in sorted_clids])
 
     if bin not in bins:
