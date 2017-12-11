@@ -13,6 +13,8 @@ def setup_args():
   parser.add_argument('-out_txt1')
   parser.add_argument('-out_txt2')
   parser.add_argument('-out_vocab', default=None)
+
+  parser.add_argument('-uniq', default=False, action='store_true')
   args = parser.parse_args()
   return args
 
@@ -24,9 +26,18 @@ def get_clusters_for_turn(turn, word2cluster):
   return sorted_clusters
 
 
-def get_clusters_for_turns(sentence, word2cluster):
+def get_clusters_for_turns(sentence, word2cluster, uniq):
   turns = sentence.split(EOT)
   out_clusters = []
+  if uniq:
+    all_words = []
+    for turn in turns:
+      all_words.extend(turn.split())
+    clusters = list(set([word2cluster[word] for word in all_words if word in word2cluster]))
+    sorted_clusters_int = np.sort(clusters)
+    sorted_clusters = [str(clid) for clid in sorted_clusters_int]
+    return sorted_clusters
+
   for turn in turns:
     sorted_clusters = get_clusters_for_turn(turn, word2cluster)
     if len(sorted_clusters) > 0:
@@ -35,8 +46,8 @@ def get_clusters_for_turns(sentence, word2cluster):
   return out_clusters
 
 
-def process_pair(txt1, txt2, word2cluster, fw_txt1, fw_txt2):
-  txt1_clusters = get_clusters_for_turns(txt1, word2cluster)
+def process_pair(txt1, txt2, word2cluster, fw_txt1, fw_txt2, uniq):
+  txt1_clusters = get_clusters_for_turns(txt1, word2cluster, uniq)
   if len(txt1_clusters) == 0:
     return
 
@@ -60,13 +71,13 @@ def main():
 
   if args.labels is None:
     for txt1, txt2 in zip(open(args.txt1), open(args.txt2)):
-      process_pair(txt1, txt2, word2cluster, fw_txt1, fw_txt2)
+      process_pair(txt1, txt2, word2cluster, fw_txt1, fw_txt2, args.uniq)
   else:
     for txt1, txt2, label in zip(open(args.txt1), open(args.txt2), open(args.labels)):
       label = int(label)
       if label == 0:
         continue
-      process_pair(txt1, txt2, word2cluster, fw_txt1, fw_txt2)
+      process_pair(txt1, txt2, word2cluster, fw_txt1, fw_txt2, args.uniq)
 
   if args.out_vocab is None:
     return
