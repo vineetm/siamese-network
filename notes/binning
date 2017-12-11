@@ -32,7 +32,12 @@
     prep-data/bin_candidates.sh $DATA_DIR
     ```
 
-    Bins: 310,288 (Candidates: 435,953)
+    Bins: 308,404 (Candidates: 435,953)
+    SW (StopWord Bins)
+    ```
+    cat ~/data/ubuntu/data/candidates.txt.bin | grep SW | wc -l
+    23,814
+    ```
 
 * Find a representative candidate from each bin
 
