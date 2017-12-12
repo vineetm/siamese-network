@@ -29,6 +29,8 @@ def get_cluster_words(sentence, word2cluster):
 
 def find_bin_key(sentence, word2cluster):
   cluster_words = get_cluster_words(sentence, word2cluster)
+  if len(cluster_words) == 0:
+    return None
   sorted_clids = np.sort(list(set([word2cluster[word] for word in cluster_words])))
   bin_key = '%s' % ' '.join([str(clid) for clid in sorted_clids])
   return bin_key

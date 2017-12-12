@@ -9,8 +9,8 @@ TRAIN_LABELS="${DATA_DIR}/train.labels"
 OUT_TRAIN_TXT1="${DATA_DIR}/train.uniq.c2c.txt1"
 OUT_TRAIN_TXT2="${DATA_DIR}/train.uniq.c2c.txt2"
 
-VOCAB_TXT1="${DATA_DIR}/vocab.c2c.txt1"
-VOCAB_TXT2="${DATA_DIR}/vocab.c2c.txt2"
+VOCAB_TXT1="${DATA_DIR}/vocab.uniq.c2c.txt1"
+VOCAB_TXT2="${DATA_DIR}/vocab.uniq.c2c.txt2"
 
 PVALID_TXT1="${DATA_DIR}/pvalid.txt1"
 PVALID_TXT2="${DATA_DIR}/pvalid.txt2"

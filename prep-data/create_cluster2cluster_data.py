@@ -84,7 +84,8 @@ def main():
 
   logging.info('Creating vocab')
   with open(args.out_vocab, 'w') as fw:
-    fw.write('%s\n'%EOT)
+    if args.uniq is False:
+      fw.write('%s\n'%EOT)
     for clid in range(num_clusters):
       fw.write('%d\n'%clid)
 
