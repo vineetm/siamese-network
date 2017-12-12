@@ -46,7 +46,7 @@ def main():
 
     #Find words most similar to word
     most_similar_words = [w for (w, s) in model.most_similar(word, topn=500)
-                          if w not in stopw and w not in assigned_words and s > args.th]
+                          if w not in stopw and w not in assigned_words and s > args.merge_th]
 
     #We did not find any word close enough to this, skip it!
     if len(most_similar_words) == 0:
