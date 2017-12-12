@@ -16,8 +16,8 @@ def create_cluster_map(cl_file):
   for line in open(cl_file):
     words = line.split()
     for word in words:
-      if word not in word2cluster:
-        word2cluster[word] = clid
+      assert word not in word2cluster
+      word2cluster[word] = clid
     clid += 1
   return word2cluster, clid
 
@@ -28,7 +28,7 @@ def get_cluster_words(sentence, word2cluster):
 
 
 def find_bin_key(sentence, word2cluster):
-  cluster_words = get_cluster_words(sentence, word2cluster)
+  cluster_words = set([word for word in sentence.split() if word in word2cluster])
   if len(cluster_words) == 0:
     return None
   sorted_clids = np.sort(list(set([word2cluster[word] for word in cluster_words])))
