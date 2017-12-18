@@ -4,6 +4,7 @@ import numpy as np, argparse, logging
 
 STOPW = 'stopw'
 OOV = 'oov'
+NA = 'na'
 
 def read_stopwords(file_name):
   stop_words = set()
@@ -120,26 +121,42 @@ def get_keys(keys_candidates, key_len, min_count):
   return keys
 
 
+def assign_bin(key, keys_candidates, index_all_keys, key_len, index_key):
+    num_assigned = 0
+    for candidate_index in keys_candidates[key_len][key]:
+      for k1 in index_all_keys[candidate_index]:
+        for k2 in index_all_keys[candidate_index][k1]:
+          if k1 == key_len and k2 == key:
+            continue
+          keys_candidates[k1][k2].remove(candidate_index)
+          if len(keys_candidates[k1][k2]) == 0:
+            del keys_candidates[k1][k2]
+          if len(keys_candidates[k1]) == 0:
+            del keys_candidates[k1]
+      index_key[candidate_index] = key
+      num_assigned += 1
+
+    #Get static list of candidates that we will remove
+    candidates = list(keys_candidates[key_len][key])
+    for candidate_index in candidates:
+      keys_candidates[key_len][key].remove(candidate_index)
+      if len(keys_candidates[key_len][key]) == 0:
+        del keys_candidates[key_len][key]
+      if len(keys_candidates[key_len]) == 0:
+        del keys_candidates[key_len]
+    return num_assigned
+
+
+
 def assign_bins(index_key, keys_candidates, index_all_keys, key_len, min_count):
-    keys = get_keys(keys_candidates, key_len, min_count)
-    logging.info('Key_Len: %d Num Keys: %d' % (key_len, len(keys)))
-    for key_num, (key, f) in enumerate(keys):
-      # These candidates need to be updated
-      for candidate_index in keys_candidates[key_len][key]:
-        for k1 in index_all_keys[candidate_index]:
-          for k2 in index_all_keys[candidate_index][k1]:
-            if k1 == key_len and k2 == key:
-              continue
-            if candidate_index in keys_candidates[k1][k2]:
-              keys_candidates[k1][k2].remove(candidate_index)
-            if len(keys_candidates[k1][k2]) == 0:
-              del keys_candidates[k1][k2]
-            if len(keys_candidates[k1]) == 0:
-              del keys_candidates[k1]
-        index_key[candidate_index] = key
-      if key_num % 1000 == 0:
-        logging.info('Key: %d/%d' % (key_num, len(keys)))
-    return count_assigned_candidates(index_key)
+    while True:
+      keys = get_keys(keys_candidates, key_len, min_count)
+      if len(keys) == 0:
+        return count_assigned_candidates(index_key)
+
+      num_assigned = assign_bin(keys[0][0], keys_candidates, index_all_keys, key_len, index_key)
+      logging.info('Key_Len: %d Key:%s Assigned:%d Remaining: %d'% (key_len, keys[0][0], num_assigned, len(keys)-1))
+
 
 
 def main():
@@ -168,7 +185,7 @@ def main():
   with open(args.candidates_bin, 'w') as fw:
     for bin in index_key:
       if bin is None:
-        fw.write('%s\n'%OOV)
+        fw.write('%s\n'%NA)
       else:
         fw.write('%s\n'%bin)
 
