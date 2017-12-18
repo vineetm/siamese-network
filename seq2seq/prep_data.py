@@ -63,6 +63,18 @@ def process_source(sentence, word2cluster, clusters):
   return final_words
 
 
+def process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters):
+  txt2_clusters = process_target(txt2, word2cluster, clusters)
+  if len(txt2_clusters) == 0:
+    return
+
+  txt1_words = process_source(txt1, word2cluster, clusters)
+  fw_txt1.write('%s\n' % ' '.join(txt1_words))
+  fw_txt2.write('%s\n' % ' '.join(txt2_clusters))
+  fw_index.write('%d\n' % index)
+
+
+
 def main():
   args = setup_args()
   logging.info(args)
@@ -78,22 +90,19 @@ def main():
   fw_index = open(args.out_index, 'w')
 
   index = 0
-  for txt1, txt2, label in zip(open(args.txt1), open(args.txt2), open(args.labels)):
-    label = int(label)
-    if label == 0:
+  if args.labels is not None:
+    for txt1, txt2, label in zip(open(args.txt1), open(args.txt2), open(args.labels)):
+      label = int(label)
+      if label == 0:
+        index += 1
+        continue
+      process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters)
       index += 1
-      continue
-
-    txt2_clusters = process_target(txt2, word2cluster, clusters)
-    if len(txt2_clusters) == 0:
+  else:
+    for txt1, txt2 in zip(open(args.txt1), open(args.txt2)):
+      process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters)
       index += 1
-      continue
 
-    txt1_words = process_source(txt1, word2cluster, clusters)
-    fw_txt1.write('%s\n'%' '.join(txt1_words))
-    fw_txt2.write('%s\n'%' '.join(txt2_clusters))
-    fw_index.write('%d\n'%index)
-    index += 1
 
 
 if __name__ == '__main__':

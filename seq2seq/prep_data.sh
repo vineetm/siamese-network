@@ -11,5 +11,13 @@ OUT_TRAIN_TXT1="${DATA_DIR}/train.seq2seq.txt1"
 OUT_TRAIN_TXT2="${DATA_DIR}/train.seq2seq.txt2"
 OUT_TRAIN_INDEX="${DATA_DIR}/train.seq2seq.index"
 
+VALID_TXT1="${DATA_DIR}/pvalid.txt1"
+VALID_TXT2="${DATA_DIR}/pvalid.txt2"
+
+OUT_VALID_TXT1="${DATA_DIR}/valid.seq2seq.txt1"
+OUT_VALID_TXT2="${DATA_DIR}/valid.seq2seq.txt2"
+OUT_VALID_INDEX="${DATA_DIR}/valid.seq2seq.index"
+
 
 python prep_data.py -stopw $STOPW -word_clusters $WORD_CLUSTERS -txt1 $TRAIN_TXT1 -txt2 $TRAIN_TXT2 -labels $TRAIN_LABELS -out_txt1 $OUT_TRAIN_TXT1 -out_txt2 $OUT_TRAIN_TXT2 -out_index $OUT_TRAIN_INDEX
+python prep_data.py -stopw $STOPW -word_clusters $WORD_CLUSTERS -txt1 $VALID_TXT1 -txt2 $VALID_TXT2 -out_txt1 $OUT_VALID_TXT1 -out_txt2 $OUT_VALID_TXT2 -out_index $OUT_VALID_INDEX
