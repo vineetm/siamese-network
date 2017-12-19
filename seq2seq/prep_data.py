@@ -14,6 +14,7 @@ def setup_args():
   parser.add_argument('-out_txt1')
   parser.add_argument('-out_txt2')
   parser.add_argument('-out_index')
+  parser.add_argument('-rev', default=False, action='store_true')
   args = parser.parse_args()
   return args
 
@@ -47,8 +48,10 @@ def get_cluster_repr(sentence, word2cluster, clusters):
   return cluster_words
 
 
-def process_target(sentence, word2cluster, clusters):
+def process_target(sentence, word2cluster, clusters, rev):
   cluster_words = get_cluster_repr(sentence, word2cluster, clusters)
+  if rev:
+    cluster_words = cluster_words[::-1]
   return cluster_words
 
 
@@ -63,8 +66,8 @@ def process_source(sentence, word2cluster, clusters):
   return final_words
 
 
-def process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters):
-  txt2_clusters = process_target(txt2, word2cluster, clusters)
+def process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters, rev):
+  txt2_clusters = process_target(txt2, word2cluster, clusters, rev)
   if len(txt2_clusters) == 0:
     return
 
@@ -72,7 +75,6 @@ def process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2clu
   fw_txt1.write('%s\n' % ' '.join(txt1_words))
   fw_txt2.write('%s\n' % ' '.join(txt2_clusters))
   fw_index.write('%d\n' % index)
-
 
 
 def main():
@@ -91,20 +93,20 @@ def main():
 
   index = 0
   if args.labels is not None:
+    logging.info('Processing train')
     for txt1, txt2, label in zip(open(args.txt1), open(args.txt2), open(args.labels)):
       label = int(label)
       if label == 0:
         index += 1
         continue
-      process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters)
+      process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters, args.rev)
       index += 1
   else:
     for txt1, txt2 in zip(open(args.txt1), open(args.txt2)):
-      process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters)
+      process_paired_input(index, txt1, txt2, fw_txt1, fw_txt2, fw_index, word2cluster, clusters, args.rev)
       index += 1
 
 
-
-  if __name__ == '__main__':
-    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-    main()
+if __name__ == '__main__':
+  logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+  main()
