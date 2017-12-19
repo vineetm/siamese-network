@@ -18,6 +18,18 @@ OUT_VALID_TXT1="${DATA_DIR}/valid.seq2seq.txt1"
 OUT_VALID_TXT2="${DATA_DIR}/valid.seq2seq.txt2"
 OUT_VALID_INDEX="${DATA_DIR}/valid.seq2seq.index"
 
+VOCAB_TXT1="${DATA_DIR}/vocab.seq2seq.txt1"
+VOCAB_TXT2="${DATA_DIR}/vocab.seq2seq.txt2"
+
+ALL_VOCAB_TXT1="${DATA_DIR}/all.vocab.seq2seq.txt1"
+ALL_VOCAB_TXT2="${DATA_DIR}/all.vocab.seq2seq.txt2"
+
 
 python prep_data.py -stopw $STOPW -word_clusters $WORD_CLUSTERS -txt1 $TRAIN_TXT1 -txt2 $TRAIN_TXT2 -labels $TRAIN_LABELS -out_txt1 $OUT_TRAIN_TXT1 -out_txt2 $OUT_TRAIN_TXT2 -out_index $OUT_TRAIN_INDEX
+echo "Tr data done"
+
+python create_vocab.py -input $OUT_TRAIN_TXT1 -all_vocab $ALL_VOCAB_TXT1 -vocab $VOCAB_TXT1
+python create_vocab.py -input $OUT_TRAIN_TXT2 -all_vocab $ALL_VOCAB_TXT2 -vocab $VOCAB_TXT2 -min_count 1
+echo "Vocab done"
+
 python prep_data.py -stopw $STOPW -word_clusters $WORD_CLUSTERS -txt1 $VALID_TXT1 -txt2 $VALID_TXT2 -out_txt1 $OUT_VALID_TXT1 -out_txt2 $OUT_VALID_TXT2 -out_index $OUT_VALID_INDEX
