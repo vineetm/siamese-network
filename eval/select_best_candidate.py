@@ -1,41 +1,59 @@
-import argparse, logging
+import argparse, logging, os
 import numpy as np
-import os
-
 
 def setup_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-candidates_dir')
-    parser.add_argument('-scores_dir')
-    parser.add_argument('-best_candidate_suffix')
-    parser.add_argument('-num', default=10, type=int)
+    parser.add_argument('-sdir')
+    parser.add_argument('-out_map', default='valid.map')
+    parser.add_argument('-out_txt2', default='valid.candidates')
+    parser.add_argument('-out_scores', default='valid.scores')
+    parser.add_argument('-num_jobs', default=32, type=int)
+    parser.add_argument('-numc', default=19560, type=int)
+
+    parser.add_argument('-topc', default='valid.topc')
     args = parser.parse_args()
     return args
 
 
-def select_best_candidate(candidates_f, scores_f):
-    candidates = []
-    scores = []
-
-    for candidate, score in zip(open(candidates_f), open(scores_f)):
-        candidates.append(candidate)
-        scores.append(float(score.strip()))
-    max_score_index = np.argmax(scores)
-    del scores
-    return candidates[max_score_index]
+def find_best_candidate(scores, candidates):
+    assert len(scores) == len(candidates)
+    if not candidates:
+        return '', -1
+    best_index = np.argmax(scores)
+    return candidates[best_index], best_index
 
 
 def main():
     args = setup_args()
     logging.info(args)
 
-    for k in range(args.num+1):
-        candidates_f = os.path.join(args.candidates_dir, f'{k}.txt2')
-        scores_f = os.path.join(args.scores_dir, f'{k}.scores')
-        best_candidate = select_best_candidate(candidates_f, scores_f)
+    with open(os.path.join(args.sdir, args.topc), 'w') as fw:
+        scores = []
+        candidates = []
+        last_index = 0
 
-        with open(os.path.join(args.scores_dir, f'{k}.{args.best_candidate_suffix}'), 'w') as fw:
-            fw.write(best_candidate)
+        for job_num in range(args.num_jobs+1):
+            scores_f = os.path.join(args.sdir, f'{args.out_scores}.k{job_num}')
+            map_f = os.path.join(args.sdir, f'{args.out_map}.k{job_num}')
+            cand_f = os.path.join(args.sdir, f'{args.out_txt2}.k{job_num}')
+
+            for score, map, candidate in zip(open(scores_f), open(map_f), open(cand_f)):
+                index, _ = [int(a) for a in map.strip().split(',')]
+
+                if index != last_index:
+                    if index != last_index+1:
+                        fw.write('\n')
+                    best_candidate, best_index = find_best_candidate(scores, candidates)
+                    logging.info(f'Job: {job_num} {last_index}: {best_index}')
+                    fw.write(f'{best_candidate.strip()}\n')
+                    scores = []
+                    candidates = []
+                    last_index = index
+                scores.append(float(score))
+                candidates.append(candidate)
+        if scores:
+            best_candidate, best_index = find_best_candidate(scores, candidates)
+            fw.write(f'{best_candidate.strip()}\n')
 
 
 if __name__ == '__main__':
