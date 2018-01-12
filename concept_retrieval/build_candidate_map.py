@@ -1,6 +1,7 @@
 import logging, argparse
 import pickle as pkl
 
+
 def build_word2cluster_map(word_clusters):
     word2cluster = {}
     clusters = []
@@ -52,6 +53,7 @@ def main():
 
     with open(f'{args.cluster_map}.pkl', 'wb') as fw:
         pkl.dump(cluster_map, fw)
+
 
 if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)

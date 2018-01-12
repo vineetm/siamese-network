@@ -64,9 +64,10 @@ def setup_args():
     parser.add_argument('-preds')
     parser.add_argument('-preds_candidates_pkl')
 
-    parser.add_argument('-max_candidates', default=5000, type=int)
+    parser.add_argument('-max_candidates', default=100, type=int)
     parser.add_argument('-reverse', action='store_true', default=False)
 
+    parser.add_argument('-num_translations', default=5, type=int)
     args = parser.parse_args()
     return args
 
@@ -78,12 +79,21 @@ def main():
     cr = ConceptRetrieval(args.cluster_map, args.word_clusters)
 
     all_candidates = []
+    candidates = []
     for index, pred in enumerate(open(args.preds)):
+        if index % args.num_translations == 0:
+            if candidates:
+                all_candidates.append(candidates)
+                logging.info(f'I: {index} cl: {clusters} #Cs: {len(candidates)} Usage: {cr.usage_stats()}')
+                candidates = []
+
         #Get clusters in sorted order
         clusters = sorted([cr.word2cluster[w] for w in set(pred.strip().split())], reverse=args.reverse)
-        candidates = cr.get_best_candidates(clusters, args.max_candidates)
-        logging.info(f'I: {index} cl: {clusters} #Cs: {len(candidates)} Usage: {cr.usage_stats()}')
-        all_candidates.extend(candidates)
+        candidates.extend(cr.get_best_candidates(clusters, args.max_candidates))
+
+    assert candidates
+    all_candidates.append(candidates)
+    logging.info(f'I: {index} cl: {clusters} #Cs: {len(candidates)} Usage: {cr.usage_stats()}')
 
     with open(f'{args.preds_candidates_pkl}.pkl', 'wb') as fw:
         pickle.dump(all_candidates, fw)
