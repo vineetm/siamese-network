@@ -35,10 +35,10 @@ class ConceptRetrieval(object):
         #logging.info(f'Key: {key} #Cs: {len(self.saved_key_map[key])}')
         return self.saved_key_map[key]
 
-    def get_best_candidates(self, clusters, max_candidates):
+    def get_best_candidates(self, clusters, max_candidates, candidates_set=None):
         candidates = []
-
-        candidates_set = set()
+        if not candidates_set:
+            candidates_set = set()
         for drop in range(len(clusters)):
             for key in combinations(clusters, len(clusters) - drop):
                 for candidate in self.get_covered_candidates(key):
@@ -47,10 +47,8 @@ class ConceptRetrieval(object):
                     candidates.append(candidate)
                     candidates_set.add(candidate)
                     if len(candidates) == max_candidates:
-                        del candidates_set
-                        return candidates
-        del candidates_set
-        return candidates
+                        return candidates, candidates_set
+        return candidates, candidates_set
 
     def usage_stats(self):
         return f'Reused/New: {self.reused_computations}/{self.new_computations}'
@@ -80,16 +78,19 @@ def main():
 
     all_candidates = []
     candidates = []
+    candidates_set = None
     for index, pred in enumerate(open(args.preds)):
         if index % args.num_translations == 0:
             if candidates:
                 all_candidates.append(candidates)
                 logging.info(f'I: {index} cl: {clusters} #Cs: {len(candidates)} Usage: {cr.usage_stats()}')
                 candidates = []
+                candidates_set = None
 
         #Get clusters in sorted order
         clusters = sorted([cr.word2cluster[w] for w in set(pred.strip().split())], reverse=args.reverse)
-        candidates.extend(cr.get_best_candidates(clusters, args.max_candidates))
+        new_candidates, candidates_set = cr.get_best_candidates(clusters, args.max_candidates, candidates_set)
+        candidates.extend(new_candidates)
 
     assert candidates
     all_candidates.append(candidates)
