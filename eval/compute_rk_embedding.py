@@ -1,7 +1,7 @@
 '''
 Compute Ubuntu R@k metrics using average cosine similarity of word embeddings
 '''
-import argparse, logging, subprocess
+import argparse, logging, subprocess, os
 from gensim.models import KeyedVectors
 from scipy.spatial.distance import cosine
 import numpy as np
@@ -14,13 +14,29 @@ def setup_args():
     parser.add_argument('-candidates', default='/u/vineeku6/data/ubuntu/data/test.txt2')
     parser.add_argument('-num', default=10, type=int, help='#Candidates per example')
     parser.add_argument('-predictions')
+
+    parser.add_argument('-trained', default=False, action='store_true')
+    parser.add_argument('-set', default=False, action='store_true')
+
+    parser.add_argument('-stopw', default='/u/vineeku6/data/ubuntu/data/stopw_word2vec.txt')
     return parser.parse_args()
 
 
-def get_embedding_average_score(sentence, w2v):
+def read_stopwords(stopw_file):
+    stopw = set()
+    for line in open(stopw_file):
+        stopw.add(line.strip())
+    return stopw
+
+
+def get_embedding_average_score(sentence, w2v, use_set, stopw):
     #Find unique words in sentence
-    words = set(sentence.strip().split())
-    words_with_embeddings = [word for word in words if word in w2v]
+    if use_set:
+        words = set(sentence.strip().split())
+    else:
+        words = sentence.strip().split()
+
+    words_with_embeddings = [word for word in words if word in w2v and word != '__eou__' and word not in stopw]
     if words_with_embeddings:
         return np.average(w2v[words_with_embeddings], axis=0)
     else:
@@ -53,17 +69,26 @@ def main():
     num_predictions = int(subprocess.getoutput(cmd))
     logging.info(f'Predictions: {num_predictions}')
 
+    if os.path.exists(args.stopw):
+        stopw = read_stopwords(args.stopw)
+        logging.info(f'Stopwords: {len(stopw)}')
+    else:
+        stopw = set()
+
     #Load Word2vec
-    w2v = KeyedVectors.load_word2vec_format(args.word2vec, binary=True)
-    logging.info(f'Word vectors found for {len(w2v.vocab)}')
+    if args.trained:
+        w2v = KeyedVectors.load(args.word2vec)
+
+    else:
+        w2v = KeyedVectors.load_word2vec_format(args.word2vec, binary=True)
+        logging.info(f'Word vectors found for {len(w2v.vocab)}')
 
     fr_candidates = open(args.candidates)
-
     num_r1, num_r2, num_r5 = 0., 0., 0.
     num_no_embedding = 0
     mrr = []
     for index, prediction in enumerate(open(args.predictions)):
-        prediction_vector = get_embedding_average_score(prediction, w2v)
+        prediction_vector = get_embedding_average_score(prediction, w2v, args.set, stopw)
         candidates = get_candidates(fr_candidates, args.num)
 
         if prediction_vector is None:
@@ -72,7 +97,7 @@ def main():
             continue
 
         #Now find vectors for 10 candidates
-        candidate_vectors = [get_embedding_average_score(candidate, w2v)
+        candidate_vectors = [get_embedding_average_score(candidate, w2v, args.set, stopw)
                             for candidate in candidates]
 
         candidate_scores = [compute_distance(prediction_vector, candidate_vec) for candidate_vec in candidate_vectors]
