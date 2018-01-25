@@ -20,6 +20,16 @@ def setup_args():
     return parser.parse_args()
 
 
+def normalize_data(np_array):
+    max = np.max(np_array)
+    min = np.min(np_array)
+    #Well all datums are same!
+    if max == min:
+        return np.ones_like(np_array)
+
+    return (np_array - min) / (max - min)
+
+
 def main():
     args = setup_args()
     logging.info(args)
@@ -45,18 +55,18 @@ def main():
             siamese_scores = siamese_scores[:args.maxc]
 
             ir_scores = np.array(ir_scores)
-            ir_scores /= (np.max(ir_scores) + 0.0001)
+            ir_scores = normalize_data(ir_scores)
 
             siamese_scores = np.array(siamese_scores)
             siamese_scores = 1.0 / (1.0 + np.exp(-siamese_scores))
-            siamese_scores /= (np.max(siamese_scores) + 0.0001)
+            siamese_scores = normalize_data(siamese_scores)
 
             weighted_scores = (args.wt * siamese_scores) + ((1.0 - args.wt) * ir_scores)
             best_score_index = np.argmax(weighted_scores)
             best_candidate = candidates[best_score_index]
-            logging.info(f'Input {k}: {best_score_index}')
+            #logging.info(f'Input {k}: {best_score_index}')
         else:
-            logging.info(f'Input {k}: Use default')
+            #logging.info(f'Input {k}: Use default')
             best_candidate = args.default
 
         fw.write(f'{best_candidate}\n')
